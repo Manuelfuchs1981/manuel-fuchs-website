@@ -254,8 +254,8 @@
       const W = 108, H = 108, CX = W/2, CY = H/2, R = 36;
       let isHover = false, t = 0;
 
-      canvas.closest('.logo-link').addEventListener('mouseenter', () => isHover = true);
-      canvas.closest('.logo-link').addEventListener('mouseleave', () => isHover = false);
+      canvas.closest('.logo-link').addEventListener('mouseenter', () => { isHover = true; var t=document.querySelector('.logo-text-wrap text'); if(t) t.style.fill='rgba(200,168,75,0.9)'; });
+      canvas.closest('.logo-link').addEventListener('mouseleave', () => { isHover = false; var t=document.querySelector('.logo-text-wrap text'); if(t) t.style.fill='rgba(168,168,176,0.75)'; });
 
       const nodes = [
         [0,R,0],[R*.7,R*.5,R*.5],[-R*.7,R*.5,R*.5],

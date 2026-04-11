@@ -187,6 +187,20 @@
     .logo-link:hover ~ .logo-text-wrap text {
       fill: #c8a84b;
     }
+
+    /* ── Timestamp ─────────────────────────────── */
+    .deploy-time {
+      position: fixed;
+      bottom: 16px;
+      right: 16px;
+      font-family: 'Jost', monospace;
+      font-size: 0.6rem;
+      font-weight: 200;
+      letter-spacing: 0.1em;
+      color: rgba(255,255,255,0.15);
+      z-index: 10;
+      user-select: none;
+    }
   </style>
 </head>
 <body>
@@ -312,5 +326,6 @@
       draw();
     })();
   </script>
+  <div class="deploy-time">⟳ 11.04.2026 - 04:28</div>
 </body>
 </html>

@@ -248,7 +248,7 @@ body{font-family:var(--font);font-size:13px;background:var(--bg);color:var(--tex
   <div class="drop-screen">
     <div class="drop-card">
       <div class="eyebrow">LV-Offerte</div>
-      <div style="font-family:var(--mono);font-size:9px;color:var(--dim);margin-bottom:8px">Deploy: 12.04.2026 10:33</div>
+      <div style="font-family:var(--mono);font-size:9px;color:var(--dim);margin-bottom:8px">Deploy: 12.04.2026 10:39</div>
       <h1>Leistungsverzeichnis<br>ausfüllen</h1>
       <div class="drop-zone" id="dropZone"
         ondragover="event.preventDefault();this.classList.add('over')"
@@ -374,7 +374,6 @@ var COND_CATS = {
     {title:'Anpassungsarbeiten',       text:'Allfällige Anpassungsarbeiten sind separat zu vergüten.'},
   ],
 };
-
 // ── SETUP ─────────────────────────────────────────────────────
 pdfjsLib.GlobalWorkerOptions.workerSrc =
   'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
@@ -513,6 +512,79 @@ function updateCostBar(){
 function runStandardParser(){ showToast('Bitte Claude analysieren verwenden','warn'); }
 
 // ── CLAUDE PARSER ─────────────────────────────────────────────
+
+function openFill(){
+  showView('vFill');
+  document.getElementById('fillPages').innerHTML='';
+  document.getElementById('fillLoading').style.display='none';
+  document.getElementById('topHint').textContent=
+    'Tab = n\u00e4chste  \u00b7  k.a. = Keine Angabe  \u00b7  b = bauseits  \u00b7  i = inkl.';
+  document.getElementById('topRight').innerHTML=
+    '<button class="btn btn-ghost" onclick="showView(\'vSelect\')">&#8592; Zur\u00fcck</button>'+
+    '<button class="btn btn-ghost" onclick="clearFill()" style="color:var(--red)">\u2715 Leeren</button>'+
+    '<button class="btn btn-ghost" onclick="toggleCond()">Bedingungen</button>'+
+    '<button class="btn btn-dark" onclick="savePdf()">\u2193 PDF speichern</button>';
+  buildCondPanel();
+}
+
+function clearFill(){
+  Object.values(parsedPos).forEach(function(p){ p.ep=0; p.status='price'; });
+  document.querySelectorAll('.fill-field:not(.gp)').forEach(function(el){
+    el.value=''; el.className='fill-field';
+  });
+  document.querySelectorAll('.fill-field.gp').forEach(function(el){
+    el.value=''; el.className='fill-field gp';
+  });
+  showToast('Alle Felder geleert','ok');
+}
+
+// ── CONDITIONS ────────────────────────────────────────────────
+function buildCondPanel(){
+  var cats=document.getElementById('condCats'); cats.innerHTML='';
+  Object.keys(COND_CATS).forEach(function(cat){
+    var div=document.createElement('div'); div.className='cond-cat';
+    var btn=document.createElement('button'); btn.className='cond-cat-btn';
+    btn.innerHTML=cat+' <span class="arr">&#9658;</span>';
+    var items=document.createElement('div'); items.className='cond-items';
+    btn.onclick=function(){ btn.classList.toggle('open'); items.classList.toggle('open'); };
+    COND_CATS[cat].forEach(function(entry){
+      var titleStr=typeof entry==='string'?entry:String(entry&&entry.title||'');
+      var textStr=typeof entry==='string'?entry:String(entry&&entry.text||entry&&entry.title||'');
+      var item=document.createElement('div'); item.className='cond-item';
+      var id='cond_'+(cat+titleStr).replace(/\W/g,'').slice(0,20);
+      var cb=document.createElement('input'); cb.type='checkbox'; cb.id=id;
+      cb.checked=activeConds.some(function(a){ return a.text===textStr; });
+      cb.addEventListener('change',function(){
+        if(this.checked){ if(!activeConds.some(function(a){ return a.text===textStr; })) activeConds.push({text:textStr,title:titleStr}); }
+        else{ activeConds=activeConds.filter(function(a){ return a.text!==textStr; }); }
+        updateCondPreview();
+      });
+      var lbl=document.createElement('label'); lbl.htmlFor=id; lbl.textContent=titleStr; lbl.title=textStr;
+      item.appendChild(cb); item.appendChild(lbl); items.appendChild(item);
+    });
+    div.appendChild(btn); div.appendChild(items); cats.appendChild(div);
+  });
+}
+
+function updateCondPreview(){
+  var manual=document.getElementById('condManual').value.trim();
+  var lines=activeConds.map(function(c){ return '\u2022 '+c.text; });
+  if(manual) manual.split('\n').forEach(function(l){ if(l.trim()) lines.push('\u2022 '+l.trim()); });
+  document.getElementById('condPreview').innerHTML=
+    lines.length?lines.join('<br>'):'<span style="color:var(--dim)">Keine Bedingungen</span>';
+}
+
+function getActiveConds(){
+  var manual=document.getElementById('condManual')?document.getElementById('condManual').value.trim():'';
+  var lines=activeConds.map(function(c){ return c.text; });
+  if(manual) manual.split('\n').forEach(function(l){ if(l.trim()) lines.push(l.trim()); });
+  return lines;
+}
+
+function toggleCond(){
+  document.getElementById('condPanel').classList.toggle('open');
+  document.getElementById('fillBody').classList.toggle('with-panel');
+}
 async function runClaudeParser(){
   if(!CLAUDE_API_KEY){ openSettings(); showToast('API-Key fehlt','err'); return; }
   var pages=Array.from(selectedPages).sort(function(a,b){ return a-b; });
@@ -786,8 +858,7 @@ async function savePdf(){
       var pH=page.getHeight();
       var epX=d.epBox.x/RENDER_SCALE, epYtop=d.epBox.y/RENDER_SCALE;
       var epH=d.epBox.h/RENDER_SCALE, epW=d.epBox.w/RENDER_SCALE;
-      var epPdfY=pH-epYtop-epH;
-      var epRight=epX+epW;
+      var epPdfY=pH-epYtop-epH, epRight=epX+epW;
       var gpRight=null;
       if(d.gpBox){var gpX=d.gpBox.x/RENDER_SCALE; gpRight=gpX+d.gpBox.w/RENDER_SCALE;}
       if(d.status==='ka'){

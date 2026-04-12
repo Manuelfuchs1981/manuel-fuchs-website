@@ -248,7 +248,7 @@ body{font-family:var(--font);font-size:13px;background:var(--bg);color:var(--tex
   <div class="drop-screen">
     <div class="drop-card">
       <div class="eyebrow">LV-Offerte</div>
-      <div style="font-family:var(--mono);font-size:9px;color:var(--dim);margin-bottom:8px">Deploy: 12.04.2026 11:15</div>
+      <div style="font-family:var(--mono);font-size:9px;color:var(--dim);margin-bottom:8px">Deploy: 12.04.2026 11:23</div>
       <h1>Leistungsverzeichnis<br>ausfüllen</h1>
       <div class="drop-zone" id="dropZone"
         ondragover="event.preventDefault();this.classList.add('over')"
@@ -686,37 +686,64 @@ async function runClaudeParser(){
       var rowH=Math.round(13*S);
 
       if(pdfRows.length===0){
-        // No dots: column-header fallback
-        var epColX=null,gpColX=null,epColW=pageW*0.13,gpColW=pageW*0.15;
-        for(var ii=0;ii<allItems.length-1;ii++){
-          var combined=(allItems[ii].str+' '+allItems[ii+1].str).toLowerCase();
-          if(!epColX&&(combined.indexOf('eh preis')>=0||combined.indexOf('einheitspreis')>=0)){
-            epColX=allItems[ii].x; epColW=Math.max((allItems[ii].w+allItems[ii+1].w)*2.5,pageW*0.12);
-          }
-          if(!gpColX&&(combined.indexOf('totalbetrag')>=0||combined.indexOf('gesamtpreis')>=0)){
-            gpColX=allItems[ii].x; gpColW=pageW-allItems[ii].x-4;
-          }
-        }
-        if(!epColX) epColX=pageW*0.68;
-        if(!gpColX){ gpColX=epColX+epColW+3; gpColW=pageW-gpColX-4; }
+        // No dots found: use Claude's line_id to find exact Y from PDF.js text,
+        // then place field right of the rightmost text item on that line
+        var usedLineYs=[];
         clRows.forEach(function(cl){
-          var exactY=pageH*(1-(cl.approx_y||0.5));
-          if(cl.marker){
+          var lineId=(cl.line_id||'').trim();
+          var matchLine=null, bestScore=0;
+
+          // Search PDF.js lines for line_id text
+          if(lineId){
             lines.forEach(function(line){
-              var lt=line.items.map(function(it){return it.str;}).join(' ');
-              if(lt.indexOf(cl.marker)>=0) exactY=line.y;
+              if(usedLineYs.some(function(y){ return Math.abs(y-line.y)<3; })) return;
+              var lt=line.items.map(function(it){ return it.str; }).join(' ');
+              if(lt.indexOf(lineId)>=0){
+                var score=lineId.length/Math.max(1,lt.length);
+                if(score>bestScore){ bestScore=score; matchLine=line; }
+              }
             });
+            // Also try matching individual words of line_id
+            if(!matchLine){
+              var words=lineId.split(/\s+/).filter(function(w){ return w.length>1; });
+              lines.forEach(function(line){
+                if(usedLineYs.some(function(y){ return Math.abs(y-line.y)<3; })) return;
+                var lt=line.items.map(function(it){ return it.str; }).join(' ');
+                var hits=words.filter(function(w){ return lt.indexOf(w)>=0; }).length;
+                if(hits===words.length&&hits>0){
+                  var score=hits/Math.max(1,lt.split(/\s+/).length);
+                  if(score>bestScore){ bestScore=score; matchLine=line; }
+                }
+              });
+            }
           }
+
+          if(!matchLine) return; // no match — skip this row
+          usedLineYs.push(matchLine.y);
+
+          var exactY=matchLine.y;
+
+          // Rightmost item on this line (right half of page preferred)
+          var rightItems=matchLine.items.filter(function(it){ return it.x>=pageW*0.4; });
+          if(!rightItems.length) rightItems=matchLine.items;
+          var rightmost=rightItems.reduce(function(best,it){
+            return (it.x+(it.w||0))>(best.x+(best.w||0))?it:best;
+          });
+
+          var fieldX=rightmost.x+(rightmost.w||0)+5;
+          var fieldW=pageW-fieldX-5;
+          if(fieldW<30){ fieldX=pageW*0.62; fieldW=pageW*0.33; }
+
           var canvasY=Math.round((pageH-exactY)*S)-rowH+2;
-          var epBox={x:Math.round(epColX*S),y:canvasY,w:Math.round(epColW*S),h:rowH};
-          var gpBox=cl.has_gp===false?null:
-            {x:Math.round(gpColX*S),y:canvasY,w:Math.min(Math.round(gpColW*S),canvas.width-Math.round(gpColX*S)-2),h:rowH};
+          var epBox={x:Math.round(fieldX*S),y:canvasY,w:Math.round(Math.min(fieldW,pageW-fieldX-2)*S),h:rowH};
+
           var key=cl.pos||('p'+pi+'_'+Math.round(exactY));
           if(parsedPos[key]) key+='_b';
           parsedPos[key]={pos:cl.pos||key,qty:cl.qty||0,unit:cl.unit||'',
-            ep:0,status:'price',pageIdx:pi,canvasW:canvas.width,canvasH:canvas.height,epBox:epBox,gpBox:gpBox};
+            ep:0,status:'price',pageIdx:pi,canvasW:canvas.width,canvasH:canvas.height,
+            epBox:epBox,gpBox:null};
           placeField(key,overlay,parsedPos[key]);
-        });
+        })
       } else {
         for(var idx=0;idx<pdfRows.length;idx++){
           var row=pdfRows[idx];
@@ -787,124 +814,40 @@ async function askClaude(canvas,pdfRows){
       +'[{"pos":"181>083","qty":4,"unit":"St"},{"pos":"181>084","qty":0,"unit":"m"},...]';
   } else {
     // No structural markers found — Claude must locate and identify price rows visually
-    prompt='This is a Swiss NPK construction price list. No dotted lines or price markers were detected automatically.\n\n'
-      +'Find every row where a unit price must be entered. These rows have:\n'
-      +'- A quantity number and unit (e.g. "168 m¹", "33 Stk.", "per LE")\n'
-      +'- A price column label like "SFr.", "Fr.", "CHF", or a blank/dotted field\n\n'
+    prompt='This is a Swiss NPK construction price list. No dotted lines were found automatically.\n\n'
+      +'Find every row where a unit price must be entered.\n'
       +'For each price row return:\n'
-      +'- pos: position number (e.g. "31,00", "32,00a")\n'
-      +'- qty: quantity as decimal; 0 if "per" or open quantity\n'
+      +'- pos: position number as printed (e.g. "31,00", "32,00a", "30,00")\n'
+      +'- qty: quantity as decimal; 0 if it says "per" or has no fixed quantity\n'
       +'- unit: unit (St, Stk, m, m2, LE, gl, kg, h, pauschal)\n'
-      +'- approx_y: vertical center of the row as fraction of image height (0=top, 1=bottom)\n'
-      +'- has_gp: true if a separate GP/total column exists, false if only one price column\n\n'
-      +'Skip: headers, totals, "Total ...", "Übertrag", section titles.\n\n'
+      +'- line_id: the EXACT quantity+unit text as it appears on the price row\n'
+      +'  Examples: "1 gl", "168 m\u00b9", "33 Stk.", "per", "2 Stk."\n'
+      +'  Must be text from the SAME LINE as the price field (not from description above).\n'
+      +'  Use the actual characters from the image.\n\n'
+      +'Skip: section headers, Total lines, Übertrag, description-only rows.\n'
       +'Return ONLY a JSON array:\n'
-      +'[{"pos":"31,00","qty":168,"unit":"m","approx_y":0.32,"has_gp":false},...]';
-  }
-  var resp=await fetch('https://api.anthropic.com/v1/messages',{
-    method:'POST',
-    headers:{'content-type':'application/json','x-api-key':CLAUDE_API_KEY,
-      'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
-    body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1500,
-      messages:[{role:'user',content:[
-        {type:'image',source:{type:'base64',media_type:'image/jpeg',data:b64}},
-        {type:'text',text:prompt}]}]})
-  });
-  if(!resp.ok){var e=await resp.json().catch(function(){return{};});
-    throw new Error('Claude API: '+((e.error&&e.error.message)||resp.status));}
-  var data=await resp.json();
-  var text='';(data.content||[]).forEach(function(b){if(b.type==='text')text+=b.text;});
-  var m=text.match(/\[[\s\S]*\]/);
-  if(!m){console.warn('[Claude] No JSON:',text);return[];}
-  try{return JSON.parse(m[0]);}catch(e){console.error('[Claude] JSON error:',text);return[];}
-}
-
-function updateUebertrag(pageIdx){
-  if(!window._uebertragEls||!window._uebertragEls[pageIdx]) return;
-  // Cumulative sum: all GP from page 0 up to and including pageIdx
-  // Übertrag fields themselves (keys starting with 'uebertrag_') are excluded
-  var sum=0;
-  Object.entries(parsedPos).forEach(function(kv){
-    var key=kv[0], p=kv[1];
-    if(key.indexOf('uebertrag_')===0) return; // skip Übertrag entries
-    if(p.pageIdx<=pageIdx&&p.ep>0&&p.qty>0&&p.status==='price') sum+=p.ep*p.qty;
-  });
-  var el=window._uebertragEls[pageIdx];
-  el.value=sum>0?fmtN(sum):'';
-  el.className='fill-field gp'+(sum>0?' filled':'');
-  // Also update all subsequent Übertrag fields
-  if(window._uebertragEls){
-    Object.keys(window._uebertragEls).forEach(function(pi){
-      pi=parseInt(pi);
-      if(pi>pageIdx) updateUebertrag(pi);
-    });
-  }
-}
-
-function placeField(key,overlay,p){
-  var ep=makeField(key,'ep',p.epBox);
-  ep.addEventListener('input',function(){
-    var pp=parsedPos[key]; if(!pp) return;
-    var val=this.value.trim().toLowerCase();
-    var gpEl=overlay.querySelector('.fill-field.gp[data-key="'+key+'"]');
-    if(val==='k'||val==='ka'||val==='k.a.'||val==='k. a.'){
-      pp.status='ka';pp.ep=0;this.className='fill-field ka';this.value='k. A.';
-      if(gpEl)gpEl.value='';
-    } else if(val==='b'||val==='bauseits'){
-      pp.status='bauseits';pp.ep=0;this.className='fill-field bauseits';this.value='bauseits';
-      if(gpEl)gpEl.value='';
-    } else if(val==='i'||val==='inkl.'||val==='inkl'){
-      pp.status='inkl';pp.ep=0;this.className='fill-field bauseits';this.value='inkl.';
-      if(gpEl)gpEl.value='';
-    } else {
-      var n=parseFloat(val.replace(/[' ]/g,'').replace(',','.'));
-      if(!isNaN(n)&&n>0){
-        pp.ep=n;pp.status='price';this.className='fill-field filled';
-        if(gpEl&&pp.qty>0){gpEl.value=fmtN(n*pp.qty);gpEl.className='fill-field gp filled';}
-      } else if(val===''){
-        pp.ep=0;pp.status='price';this.className='fill-field';
-        if(gpEl){gpEl.value='';gpEl.className='fill-field gp';}
+      +'[{"pos":"30,00","qty":1,"unit":"gl","line_id":"1 gl"},{"pos":"31,00","qty":168,"unit":"m","line_id":"168 m"},...]';
       }
+      var allW=conds.map(function(c){return wrapText(c,maxW);});
+      var totH=allW.reduce(function(s,w){return s+w.length*lineH+sz*0.25;},0)+sz*2;
+      lastPage.drawRectangle({x:0,y:cy-totH-60,width:pW,height:totH+100,color:PDFLib.rgb(1,1,1)});
+      allW.forEach(function(wrapped){
+        if(cy<20)return;
+        lastPage.drawText('•  '+wrapped[0],{x:leftX,y:cy,size:sz,font:font,color:blue});cy-=lineH;
+        for(var wi=1;wi<wrapped.length;wi++){if(cy<20)return;
+          lastPage.drawText(wrapped[wi],{x:leftX+bulletW,y:cy,size:sz,font:font,color:blue});cy-=lineH;}
+        cy-=sz*0.25;
+      });
     }
-    updateUebertrag(pp.pageIdx);
-  });
-  ep.addEventListener('focus',function(){
-    var pp=parsedPos[key];
-    if(pp&&pp.ep>0&&pp.status==='price'){this.value=pp.ep.toString();this.select();}
-  });
-  ep.addEventListener('blur',function(){
-    var pp=parsedPos[key];
-    if(pp&&pp.ep>0&&pp.status==='price') this.value=fmtN(pp.ep);
-  });
-  ep.addEventListener('keydown',function(e){
-    if(e.key==='Tab'||e.key==='Enter'){
-      e.preventDefault();
-      var all=Array.from(document.querySelectorAll('.fill-field:not(.gp)'));
-      var idx2=all.indexOf(this);
-      if(idx2>=0&&idx2<all.length-1){all[idx2+1].focus();all[idx2+1].select();}
-    }
-  });
-  overlay.appendChild(ep);
-  if(p.gpBox){var gp=makeField(key,'gp',p.gpBox);gp.readOnly=true;gp.tabIndex=-1;overlay.appendChild(gp);}
-  var del=document.createElement('button');
-  del.className='del-btn';del.textContent='\u00d7';del.title='Ausblenden';
-  var box=p.gpBox||p.epBox;
-  del.style.left=(box.x+box.w+3)+'px';del.style.top=p.epBox.y+'px';
-  del.addEventListener('click',function(){
-    overlay.querySelectorAll('[data-key="'+key+'"]').forEach(function(el){el.remove();});
-    del.remove();delete parsedPos[key];
-  });
-  overlay.appendChild(del);
-}
-
-function makeField(key,type,box){
-  var el=document.createElement('input');
-  el.type='text';el.className='fill-field'+(type==='gp'?' gp':'');
-  el.dataset.key=key;el.dataset.type=type;
-  el.style.left=box.x+'px';el.style.top=box.y+'px';
-  el.style.width=box.w+'px';el.style.height=box.h+'px';
-  el.style.fontSize='10px';
-  return el;
+    var out=await pdfDoc.save();
+    var blob=new Blob([out],{type:'application/pdf'});
+    var url=URL.createObjectURL(blob);
+    var a=document.createElement('a');
+    a.href=url;a.download='Angebot'+(pdfProjNr?'-'+pdfProjNr:'')+(pdfProjBez?'-'+pdfProjBez:'')+'.pdf';
+    document.body.appendChild(a);a.click();document.body.removeChild(a);
+    setTimeout(function(){URL.revokeObjectURL(url);},3000);
+    showToast('PDF gespeichert ✓','ok');
+  }catch(e){console.error(e);showToast('Fehler: '+e.message,'err');}
 }
 function fmtN(n){
   if(!n&&n!==0) return '';
@@ -912,6 +855,7 @@ function fmtN(n){
   parts[0]=parts[0].replace(/\B(?=(\d{3})+(?!\d))/g,"'");
   return parts[0]+'.'+parts[1];
 }
+
 async function savePdf(){
   if(!sourcePdfBuf||typeof PDFLib==='undefined'){showToast('PDF nicht bereit','err');return;}
   showToast('PDF wird erstellt…','info');
@@ -951,11 +895,11 @@ async function savePdf(){
       var pW=lastPage.getWidth(),pHH=lastPage.getHeight();
       var cy=80,leftX=56.5,bulletW=cw('•  ',sz),maxW=pW-leftX-40-bulletW,lineH=sz*1.3;
       function wrapText(text,mW){
-        var words=text.split(' '),lines=[],cur='';
-        words.forEach(function(w){var test=cur?cur+' '+w:w;if(cw(test,sz)<=mW){cur=test;}else{if(cur)lines.push(cur);cur=w;}});
-        if(cur)lines.push(cur);return lines.length?lines:[''];
+        var words=text.split(' '),lines2=[],cur='';
+        words.forEach(function(w){var test=cur?cur+' '+w:w;if(cw(test,sz)<=mW){cur=test;}else{if(cur)lines2.push(cur);cur=w;}});
+        if(cur)lines2.push(cur);return lines2.length?lines2:[''];
       }
-      var allW=conds.map(function(c){return wrapText(c,maxW);});
+      var allW=conds.map(function(c2){return wrapText(c2,maxW);});
       var totH=allW.reduce(function(s,w){return s+w.length*lineH+sz*0.25;},0)+sz*2;
       lastPage.drawRectangle({x:0,y:cy-totH-60,width:pW,height:totH+100,color:PDFLib.rgb(1,1,1)});
       allW.forEach(function(wrapped){
@@ -976,6 +920,7 @@ async function savePdf(){
     showToast('PDF gespeichert ✓','ok');
   }catch(e){console.error(e);showToast('Fehler: '+e.message,'err');}
 }
+
 document.addEventListener('DOMContentLoaded', function(){
   var logoEl = document.getElementById('logoImg');
   if(logoEl) logoEl.src = MORF_LOGO_B64;

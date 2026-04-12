@@ -341,7 +341,7 @@ body{font-family:var(--font);font-size:13px;background:var(--bg);color:var(--tex
   <div class="drop-screen">
     <div class="drop-card">
       <div class="eyebrow">LV-Offerte</div>
-      <div style="font-family:var(--mono);font-size:9px;color:var(--dim);margin-bottom:8px">Deploy: 12.04.2026 15:48</div>
+      <div style="font-family:var(--mono);font-size:9px;color:var(--dim);margin-bottom:8px">Deploy: 12.04.2026 15:52</div>
       <h1>Leistungsverzeichnis<br>ausfüllen</h1>
       <div class="drop-zone" id="dropZone"
         ondragover="event.preventDefault();this.classList.add('over')"
@@ -939,107 +939,98 @@ function toggleSortMode(){
   buildCondPanel();
 }
 
-function buildSortModePanel(cats,catsList){
-  var el=document.getElementById('condCats'); el.innerHTML='';
+function buildSortModePanel(){
+  var el=document.getElementById('condCats');
+  el.innerHTML='';
 
-  // Only show currently checked conditions
-  var checkedTexts=activeConds.map(function(a){return a.text;});
-  var visible=dbBedingungen.filter(function(b){return checkedTexts.indexOf(b.text)>=0;});
+  // Only checked conditions
+  var checked=activeConds.slice(); // copy of checked conditions in current order
+  
+  // Exit button at TOP so it's always visible
+  var exitBtn=document.createElement('button');
+  exitBtn.textContent='← Zurück';
+  exitBtn.style.cssText='width:100%;padding:8px;background:var(--text);color:#fff;border:none;border-radius:7px;font-family:var(--font);font-size:12px;font-weight:600;cursor:pointer;margin-bottom:10px';
+  exitBtn.onclick=function(){ _sortMode=false; buildCondPanel(); };
+  el.appendChild(exitBtn);
 
-  if(visible.length===0){
-    var empty=document.createElement('div');
-    empty.style.cssText='text-align:center;color:var(--muted);font-size:11px;padding:16px';
-    empty.textContent='Keine Bedingungen ausgewählt';
-    el.appendChild(empty);
-    var exitBtn2=document.createElement('button'); exitBtn2.className='sort-mode-btn active';
-    exitBtn2.textContent='✓ Sortierung abschliessen'; exitBtn2.onclick=toggleSortMode;
-    el.appendChild(exitBtn2);
+  if(checked.length===0){
+    var msg=document.createElement('div');
+    msg.style.cssText='text-align:center;color:var(--muted);font-size:11px;padding:16px';
+    msg.textContent='Keine Bedingungen ausgewählt';
+    el.appendChild(msg);
     return;
   }
 
-  // Sort mode header
-  var hdr=document.createElement('div');
-  hdr.style.cssText='font-size:10px;color:var(--muted);margin-bottom:8px;padding:6px 8px;background:#fffbe6;border-radius:6px;border:1px solid var(--yellow)';
-  hdr.textContent='⇅ Zeile ziehen um Reihenfolge ändern ('+visible.length+' ausgewählt)';
-  el.appendChild(hdr);
+  var hint=document.createElement('div');
+  hint.style.cssText='font-size:10px;color:var(--muted);padding:6px 8px;background:#fffbe6;border-radius:6px;border:1px solid #e8c800;margin-bottom:8px';
+  hint.textContent='⇅ Ziehen zum Umordnen — '+checked.length+' Bedingung'+(checked.length===1?'':'en')+' ausgewählt';
+  el.appendChild(hint);
 
-  // Flat list of only checked conditions
-  visible.forEach(function(entry,idx){
-    var kat=entry.kategorie;
-    // Insert category divider when category changes
-    var prev=globalIdx>0?dbBedingungen[globalIdx-1].kategorie:null;
-    if(kat!==prev){
-      var div=document.createElement('div'); div.className='cond-sort-divider';
-      div.textContent=kat; div.dataset.kat=kat;
-      el.appendChild(div);
-    }
+  // Build draggable flat list
+  var list=document.createElement('div'); list.id='sortList';
+  el.appendChild(list);
 
-    var row=document.createElement('div'); row.className='cond-flat-item';
-    row.dataset.id=entry.id; row.dataset.idx=String(globalIdx);
+  function renderList(){
+    list.innerHTML='';
+    activeConds.forEach(function(entry,i){
+      var row=document.createElement('div');
+      row.style.cssText='display:flex;align-items:center;gap:8px;padding:8px 10px;'+
+        'background:var(--surface);border:1.5px solid var(--border);border-radius:7px;'+
+        'margin-bottom:5px;cursor:grab;user-select:none;font-size:11px;color:var(--text)';
+      row.draggable=true;
+      row.dataset.i=String(i);
 
-    var grip=document.createElement('span');
-    grip.innerHTML='&#8942;&#8942;'; grip.style.cssText='opacity:.35;font-size:12px;flex-shrink:0';
-    var label=document.createElement('span'); label.textContent=entry.titel;
-    label.style.cssText='flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap';
+      var grip=document.createElement('span');
+      grip.textContent='⠇'; grip.style.cssText='opacity:.4;font-size:14px;flex-shrink:0';
 
-    row.appendChild(grip); row.appendChild(label);
-    el.appendChild(row);
+      var lbl=document.createElement('span');
+      lbl.textContent=entry.title||entry.text.slice(0,60);
+      lbl.style.cssText='flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap';
 
-    // Drag events
-    row.draggable=true;
-    row.addEventListener('dragstart',function(e){
-      _sortDragSrc=idx;
-      e.dataTransfer.effectAllowed='move';
-      setTimeout(function(){row.classList.add('dragging');},0);
+      row.appendChild(grip); row.appendChild(lbl);
+      list.appendChild(row);
+
+      // Native drag events
+      row.addEventListener('dragstart',function(e){
+        e.dataTransfer.effectAllowed='move';
+        e.dataTransfer.setData('text/plain',String(i));
+        row.style.opacity='.3';
+        row.style.background='#fff8cc';
+      });
+      row.addEventListener('dragend',function(){
+        row.style.opacity=''; row.style.background='';
+        list.querySelectorAll('div').forEach(function(r){
+          r.style.borderTop='';
+        });
+      });
+      row.addEventListener('dragover',function(e){
+        e.preventDefault(); e.dataTransfer.dropEffect='move';
+        list.querySelectorAll('div').forEach(function(r){r.style.borderTop='';});
+        row.style.borderTop='2px solid var(--yellow)';
+      });
+      row.addEventListener('dragleave',function(){
+        row.style.borderTop='';
+      });
+      row.addEventListener('drop',function(e){
+        e.preventDefault();
+        row.style.borderTop='';
+        var srcI=parseInt(e.dataTransfer.getData('text/plain'));
+        var dstI=i;
+        if(srcI===dstI) return;
+        var moved=activeConds.splice(srcI,1)[0];
+        var newDst=srcI<dstI?dstI-1:dstI;
+        activeConds.splice(newDst,0,moved);
+        updateCondPreview();
+        renderList();
+      });
     });
-    row.addEventListener('dragend',function(){
-      row.classList.remove('dragging');
-      el.querySelectorAll('.cond-flat-item').forEach(function(r){r.classList.remove('drag-over');});
-    });
-    row.addEventListener('dragover',function(e){
-      e.preventDefault(); e.dataTransfer.dropEffect='move';
-      el.querySelectorAll('.cond-flat-item').forEach(function(r){r.classList.remove('drag-over');});
-      if(_sortDragSrc!==null&&_sortDragSrc!==idx) row.classList.add('drag-over');
-    });
-    row.addEventListener('drop',function(e){
-      e.preventDefault();
-      row.classList.remove('drag-over');
-      if(_sortDragSrc===null||_sortDragSrc===idx) return;
-      // Reorder activeConds
-      var srcAcIdx=_sortDragSrc, dstAcIdx=idx;
-      var movedAc=activeConds.splice(srcAcIdx,1)[0];
-      if(srcAcIdx<dstAcIdx) dstAcIdx--;
-      activeConds.splice(dstAcIdx,0,movedAc);
-      // Also reorder in dbBedingungen to keep in sync
-      var srcDb=dbBedingungen.findIndex(function(b){return b.text===movedAc.text;});
-      var dstDb=dbBedingungen.findIndex(function(b){return b.text===visible[dstAcIdx<visible.length?dstAcIdx:visible.length-1].text;});
-      if(srcDb>=0&&dstDb>=0&&srcDb!==dstDb){
-        var movedDb=dbBedingungen.splice(srcDb,1)[0];
-        dbBedingungen.splice(dstDb,0,movedDb);
-      }
-      updateCondPreview();
-      buildCondPanel();
-    });
-  });
+  }
 
-  // Exit sort mode button
-  var exitBtn=document.createElement('button'); exitBtn.className='sort-mode-btn active';
-  exitBtn.textContent='✓ Sortierung abschliessen';
-  exitBtn.onclick=toggleSortMode;
-  el.appendChild(exitBtn);
+  renderList();
 }
 
-function _inferKat(idx){
-  // Walk backwards to find the nearest preceding item's category (stable, as dividers are derived from data)
-  if(idx<=0) return dbBedingungen[0]?dbBedingungen[0].kategorie:'Allgemein';
-  // The item before gives its category
-  return dbBedingungen[idx]?dbBedingungen[idx].kategorie:(dbBedingungen[idx-1]?dbBedingungen[idx-1].kategorie:'Allgemein');
-}
 
-async function _saveFlatOrder(movedId, newKat){
-  if(!supabase) return;
-  var promises=dbBedingungen.map(function(b,i){
-    var upd={sort_order:i};
+;
     if(b.id===movedId&&newKat) upd.kategorie=newKat;
     return supabase.from('bedingungen').update(upd).eq('id',b.id);
   });

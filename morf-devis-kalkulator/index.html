@@ -260,7 +260,7 @@ body{font-family:var(--font);font-size:13px;background:var(--bg);color:var(--tex
   <div class="drop-screen">
     <div class="drop-card">
       <div class="eyebrow">LV-Offerte</div>
-      <div style="font-family:var(--mono);font-size:9px;color:var(--dim);margin-bottom:8px">Deploy: 12.04.2026 13:26</div>
+      <div style="font-family:var(--mono);font-size:9px;color:var(--dim);margin-bottom:8px">Deploy: 12.04.2026 13:30</div>
       <h1>Leistungsverzeichnis<br>ausfüllen</h1>
       <div class="drop-zone" id="dropZone"
         ondragover="event.preventDefault();this.classList.add('over')"
@@ -473,8 +473,10 @@ function onFileInput(file){
   pdfProjNr=fnM?fnM[1]:''; pdfProjBez=fnM?fnM[2].replace(/_/g,' ').trim():'';
   var r=new FileReader();
   r.onload=async function(ev){
-    sourcePdfBuf=ev.target.result.slice(0);
-    pjsDoc=await pdfjsLib.getDocument({data:new Uint8Array(sourcePdfBuf)}).promise;
+    var rawBytes=new Uint8Array(ev.target.result);
+    sourcePdfBuf=rawBytes.slice(0);    // Uint8Array — independent buffer for pdf-lib
+    var pjsBytes=rawBytes.slice(0);    // another independent copy for PDF.js
+    pjsDoc=await pdfjsLib.getDocument({data:pjsBytes}).promise;
     showPageSelector();
   };
   r.readAsArrayBuffer(file);
@@ -985,7 +987,7 @@ async function savePdf(){
   if(!sourcePdfBuf||typeof PDFLib==='undefined'){showToast('PDF nicht bereit','err');return;}
   showToast('PDF wird erstellt\u2026','info');
   try{
-    var pdfDoc=await PDFLib.PDFDocument.load(new Uint8Array(sourcePdfBuf.slice(0)),{ignoreEncryption:true});
+    var pdfDoc=await PDFLib.PDFDocument.load(sourcePdfBuf.slice(0),{ignoreEncryption:true});
     var font=await pdfDoc.embedFont(PDFLib.StandardFonts.Helvetica);
     var fontB=await pdfDoc.embedFont(PDFLib.StandardFonts.HelveticaBold);
     var pages=pdfDoc.getPages();

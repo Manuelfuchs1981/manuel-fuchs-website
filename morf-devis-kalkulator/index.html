@@ -248,7 +248,7 @@ body{font-family:var(--font);font-size:13px;background:var(--bg);color:var(--tex
   <div class="drop-screen">
     <div class="drop-card">
       <div class="eyebrow">LV-Offerte</div>
-      <div style="font-family:var(--mono);font-size:9px;color:var(--dim);margin-bottom:8px">Deploy: 12.04.2026 10:45</div>
+      <div style="font-family:var(--mono);font-size:9px;color:var(--dim);margin-bottom:8px">Deploy: 12.04.2026 10:47</div>
       <h1>Leistungsverzeichnis<br>ausfüllen</h1>
       <div class="drop-zone" id="dropZone"
         ondragover="event.preventDefault();this.classList.add('over')"
@@ -718,9 +718,9 @@ async function runClaudeParser(){
       if(uebertragRow){
         var ur=uebertragRow;
         var uCanvasY=Math.round((pageH-ur.y)*S)-rowH+2;
-        var uGpBox=ur.gp?{x:Math.round(ur.gp.x*S),y:uCanvasY,
-          w:Math.min(Math.round(ur.gp.w*S),canvas.width-Math.round(ur.gp.x*S)-2),h:rowH}:null;
-        if(uGpBox){
+        var uDot=ur.gp||ur.ep;
+        var uGpBox={x:Math.round(uDot.x*S),y:uCanvasY,w:Math.min(Math.round(uDot.w*S),canvas.width-Math.round(uDot.x*S)-2),h:rowH};
+        if(true){
           var uEl=makeField('uebertrag_p'+pi,'gp',uGpBox);
           uEl.readOnly=true; uEl.tabIndex=-1; uEl.style.fontWeight='600';
           uEl.title='\u00dcbertrag';

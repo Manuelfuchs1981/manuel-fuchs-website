@@ -324,7 +324,7 @@ body{font-family:var(--font);font-size:13px;background:var(--bg);color:var(--tex
   <div class="drop-screen">
     <div class="drop-card">
       <div class="eyebrow">LV-Offerte</div>
-      <div style="font-family:var(--mono);font-size:9px;color:var(--dim);margin-bottom:8px">Deploy: 12.04.2026 15:26</div>
+      <div style="font-family:var(--mono);font-size:9px;color:var(--dim);margin-bottom:8px">Deploy: 12.04.2026 15:32</div>
       <h1>Leistungsverzeichnis<br>ausfüllen</h1>
       <div class="drop-zone" id="dropZone"
         ondragover="event.preventDefault();this.classList.add('over')"
@@ -1248,7 +1248,8 @@ async function savePdf(){
       var pH=page.getHeight();
       var epX=d.epBox.x/RENDER_SCALE,epYtop=d.epBox.y/RENDER_SCALE;
       var epH=d.epBox.h/RENDER_SCALE,epW=d.epBox.w/RENDER_SCALE;
-      var epPdfY=pH-epYtop-epH,epRight=epX+epW;
+      var epPdfY=pH-epYtop-epH+2; // +2pt: lift above the dotted line
+      var epRight=epX+epW;
       var gpRight=null;
       if(d.gpBox){var gpX=d.gpBox.x/RENDER_SCALE;gpRight=gpX+d.gpBox.w/RENDER_SCALE;}
       if(d.status==='ka'){

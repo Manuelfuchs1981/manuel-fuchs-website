@@ -227,6 +227,18 @@ body{font-family:var(--font);font-size:13px;background:var(--bg);color:var(--tex
 .cond-drag-handle{background:none;border:none;cursor:grab;color:var(--dim);
   font-size:13px;padding:0 4px 0 0;opacity:.35;flex-shrink:0;user-select:none}
 .cond-drag-handle:hover{opacity:.8;cursor:grab}
+.cond-sort-divider{font-size:9px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;
+  color:var(--muted);padding:8px 0 3px 0;border-top:1px solid var(--border);margin-top:4px}
+.cond-sort-divider:first-child{border-top:none;margin-top:0;padding-top:0}
+.cond-flat-item{display:flex;align-items:center;gap:6px;padding:5px 8px;
+  background:var(--surface);border:1px solid var(--border);border-radius:6px;
+  margin-bottom:4px;cursor:grab;font-size:11px;color:var(--text)}
+.cond-flat-item.dragging{opacity:.3;background:#fff8cc}
+.cond-flat-item.drag-over{border-color:var(--yellow);border-top:2px solid var(--yellow)}
+.sort-mode-btn{width:100%;padding:6px 10px;background:none;border:1.5px solid var(--border2);
+  border-radius:6px;cursor:pointer;font-family:var(--font);font-size:11px;color:var(--muted);
+  margin-top:8px;text-align:center}
+.sort-mode-btn.active{background:var(--yellow-bg);border-color:var(--yellow);color:#927200;font-weight:600}
 .cond-item.dragging{opacity:.35;background:#fff8cc}
 .cond-item.drag-over{border-top:2px solid var(--yellow)}
 .cond-edit-form{background:#fff8cc;border:1px solid var(--yellow);border-radius:7px;
@@ -329,7 +341,7 @@ body{font-family:var(--font);font-size:13px;background:var(--bg);color:var(--tex
   <div class="drop-screen">
     <div class="drop-card">
       <div class="eyebrow">LV-Offerte</div>
-      <div style="font-family:var(--mono);font-size:9px;color:var(--dim);margin-bottom:8px">Deploy: 12.04.2026 15:40</div>
+      <div style="font-family:var(--mono);font-size:9px;color:var(--dim);margin-bottom:8px">Deploy: 12.04.2026 15:43</div>
       <h1>Leistungsverzeichnis<br>ausfüllen</h1>
       <div class="drop-zone" id="dropZone"
         ondragover="event.preventDefault();this.classList.add('over')"
@@ -652,6 +664,7 @@ function clearFill(){
 // ── CONDITIONS ────────────────────────────────────────────────
 function buildCondPanel(){
   var cats=document.getElementById('condCats'); cats.innerHTML='';
+  if(_sortMode){ buildSortModePanel(); return; }
 
   // Group by kategorie
   var groups={};
@@ -744,6 +757,12 @@ function buildCondPanel(){
   });
 
   // Add new condition button
+  // Sort mode toggle button
+  var sortBtn=document.createElement('button'); sortBtn.className='sort-mode-btn';
+  sortBtn.textContent='⇅ Reihenfolge ändern';
+  sortBtn.onclick=toggleSortMode;
+  cats.appendChild(sortBtn);
+
   var addBtn=document.createElement('button'); addBtn.className='cond-add-btn';
   addBtn.innerHTML='+ Neue Bedingung hinzufügen';
   var addForm=document.createElement('div'); addForm.className='cond-add-form';
@@ -911,6 +930,105 @@ function toggleHamburger(){
     });
   },0);
 }
+// ── SORT MODE (flat reorderable list) ─────────────────────────
+var _sortMode=false, _sortDragSrc=null;
+
+function toggleSortMode(){
+  _sortMode=!_sortMode;
+  buildCondPanel();
+}
+
+function buildSortModePanel(cats,catsList){
+  var el=document.getElementById('condCats'); el.innerHTML='';
+
+  // Sort mode header
+  var hdr=document.createElement('div');
+  hdr.style.cssText='font-size:10px;color:var(--muted);margin-bottom:8px;padding:6px 8px;background:#fffbe6;border-radius:6px;border:1px solid var(--yellow)';
+  hdr.textContent='⇅ Zeile ziehen um Reihenfolge ändern — zwischen Kategorien möglich';
+  el.appendChild(hdr);
+
+  // Flat list grouped by category with dividers
+  dbBedingungen.forEach(function(entry,globalIdx){
+    var kat=entry.kategorie;
+    // Insert category divider when category changes
+    var prev=globalIdx>0?dbBedingungen[globalIdx-1].kategorie:null;
+    if(kat!==prev){
+      var div=document.createElement('div'); div.className='cond-sort-divider';
+      div.textContent=kat; div.dataset.kat=kat;
+      el.appendChild(div);
+    }
+
+    var row=document.createElement('div'); row.className='cond-flat-item';
+    row.dataset.id=entry.id; row.dataset.idx=String(globalIdx);
+
+    var grip=document.createElement('span');
+    grip.innerHTML='&#8942;&#8942;'; grip.style.cssText='opacity:.35;font-size:12px;flex-shrink:0';
+    var label=document.createElement('span'); label.textContent=entry.titel;
+    label.style.cssText='flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap';
+
+    row.appendChild(grip); row.appendChild(label);
+    el.appendChild(row);
+
+    // Drag events
+    row.draggable=true;
+    row.addEventListener('dragstart',function(e){
+      _sortDragSrc=globalIdx;
+      e.dataTransfer.effectAllowed='move';
+      setTimeout(function(){row.classList.add('dragging');},0);
+    });
+    row.addEventListener('dragend',function(){
+      row.classList.remove('dragging');
+      el.querySelectorAll('.cond-flat-item').forEach(function(r){r.classList.remove('drag-over');});
+    });
+    row.addEventListener('dragover',function(e){
+      e.preventDefault(); e.dataTransfer.dropEffect='move';
+      el.querySelectorAll('.cond-flat-item').forEach(function(r){r.classList.remove('drag-over');});
+      if(_sortDragSrc!==null&&_sortDragSrc!==globalIdx) row.classList.add('drag-over');
+    });
+    row.addEventListener('drop',function(e){
+      e.preventDefault();
+      row.classList.remove('drag-over');
+      if(_sortDragSrc===null||_sortDragSrc===globalIdx) return;
+      var moved=dbBedingungen.splice(_sortDragSrc,1)[0];
+      // Find new target index after splice
+      var tgtEl=el.querySelectorAll('.cond-flat-item');
+      var newGlobalIdx=parseInt(row.dataset.idx);
+      if(_sortDragSrc<newGlobalIdx) newGlobalIdx--;
+      dbBedingungen.splice(newGlobalIdx,0,moved);
+      // Update category of moved item if it changed
+      var newKat=_inferKat(newGlobalIdx);
+      var katChanged=moved.kategorie!==newKat;
+      if(katChanged) moved.kategorie=newKat;
+      // Save: sort_order for all, kategorie if changed
+      _saveFlatOrder(moved.id, katChanged?newKat:null);
+      buildCondPanel();
+    });
+  });
+
+  // Exit sort mode button
+  var exitBtn=document.createElement('button'); exitBtn.className='sort-mode-btn active';
+  exitBtn.textContent='✓ Sortierung abschliessen';
+  exitBtn.onclick=toggleSortMode;
+  el.appendChild(exitBtn);
+}
+
+function _inferKat(idx){
+  // Walk backwards to find the nearest preceding item's category (stable, as dividers are derived from data)
+  if(idx<=0) return dbBedingungen[0]?dbBedingungen[0].kategorie:'Allgemein';
+  // The item before gives its category
+  return dbBedingungen[idx]?dbBedingungen[idx].kategorie:(dbBedingungen[idx-1]?dbBedingungen[idx-1].kategorie:'Allgemein');
+}
+
+async function _saveFlatOrder(movedId, newKat){
+  if(!supabase) return;
+  var promises=dbBedingungen.map(function(b,i){
+    var upd={sort_order:i};
+    if(b.id===movedId&&newKat) upd.kategorie=newKat;
+    return supabase.from('bedingungen').update(upd).eq('id',b.id);
+  });
+  await Promise.all(promises);
+}
+
 function toggleCond(){
   document.getElementById('condPanel').classList.toggle('open');
   document.getElementById('fillBody').classList.toggle('with-panel');

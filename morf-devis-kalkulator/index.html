@@ -324,7 +324,7 @@ body{font-family:var(--font);font-size:13px;background:var(--bg);color:var(--tex
   <div class="drop-screen">
     <div class="drop-card">
       <div class="eyebrow">LV-Offerte</div>
-      <div style="font-family:var(--mono);font-size:9px;color:var(--dim);margin-bottom:8px">Deploy: 12.04.2026 15:24</div>
+      <div style="font-family:var(--mono);font-size:9px;color:var(--dim);margin-bottom:8px">Deploy: 12.04.2026 15:26</div>
       <h1>Leistungsverzeichnis<br>ausfüllen</h1>
       <div class="drop-zone" id="dropZone"
         ondragover="event.preventDefault();this.classList.add('over')"
@@ -1456,10 +1456,18 @@ function showReset(){
 
 function onLoggedIn(user){
   loadBedingungen();
+  // Derive initials from email: manuel.fuchs@... → MF
+  var emailLocal=user.email.split('@')[0];
+  var parts=emailLocal.split(/[.\-_]/);
+  var initials=(parts.map(function(p){return p[0]||'';}).join('').toUpperCase().slice(0,2))||'?';
   document.getElementById('topRight').innerHTML =
-    '<span style="font-size:11px;color:var(--muted)">'+user.email+'</span>' +
-    '<button class="btn btn-ghost" onclick="doLogout()" style="font-size:11px">Abmelden</button>' +
-    '<button class="btn btn-ghost" id="hamburgerBtn" onclick="toggleHamburger()" style="font-size:16px;padding:6px 10px">☰</button>';
+    '<div onclick="toggleHamburger()" title="'+user.email+'" style="'+
+      'width:32px;height:32px;border-radius:50%;'+
+      'background:var(--yellow);color:#fff;font-weight:700;'+
+      'font-size:12px;font-family:var(--font);'+
+      'display:flex;align-items:center;justify-content:center;'+
+      'cursor:pointer;flex-shrink:0;user-select:none;'+
+      'box-shadow:0 1px 4px rgba(0,0,0,.2)">'+initials+'</div>';
   showView('vDrop');
 }
 

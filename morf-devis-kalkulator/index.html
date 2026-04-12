@@ -248,7 +248,7 @@ body{font-family:var(--font);font-size:13px;background:var(--bg);color:var(--tex
   <div class="drop-screen">
     <div class="drop-card">
       <div class="eyebrow">LV-Offerte</div>
-      <div style="font-family:var(--mono);font-size:9px;color:var(--dim);margin-bottom:8px">Deploy: 12.04.2026 10:47</div>
+      <div style="font-family:var(--mono);font-size:9px;color:var(--dim);margin-bottom:8px">Deploy: 12.04.2026 10:52</div>
       <h1>Leistungsverzeichnis<br>ausfüllen</h1>
       <div class="drop-zone" id="dropZone"
         ondragover="event.preventDefault();this.classList.add('over')"
@@ -772,13 +772,24 @@ async function askClaude(canvas,pdfRows){
 
 function updateUebertrag(pageIdx){
   if(!window._uebertragEls||!window._uebertragEls[pageIdx]) return;
+  // Cumulative sum: all GP from page 0 up to and including pageIdx
+  // Übertrag fields themselves (keys starting with 'uebertrag_') are excluded
   var sum=0;
-  Object.values(parsedPos).forEach(function(p){
-    if(p.pageIdx===pageIdx&&p.ep>0&&p.qty>0&&p.status==='price') sum+=p.ep*p.qty;
+  Object.entries(parsedPos).forEach(function(kv){
+    var key=kv[0], p=kv[1];
+    if(key.indexOf('uebertrag_')===0) return; // skip Übertrag entries
+    if(p.pageIdx<=pageIdx&&p.ep>0&&p.qty>0&&p.status==='price') sum+=p.ep*p.qty;
   });
   var el=window._uebertragEls[pageIdx];
   el.value=sum>0?fmtN(sum):'';
   el.className='fill-field gp'+(sum>0?' filled':'');
+  // Also update all subsequent Übertrag fields
+  if(window._uebertragEls){
+    Object.keys(window._uebertragEls).forEach(function(pi){
+      pi=parseInt(pi);
+      if(pi>pageIdx) updateUebertrag(pi);
+    });
+  }
 }
 
 function placeField(key,overlay,p){

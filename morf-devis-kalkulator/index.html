@@ -248,7 +248,7 @@ body{font-family:var(--font);font-size:13px;background:var(--bg);color:var(--tex
   <div class="drop-screen">
     <div class="drop-card">
       <div class="eyebrow">LV-Offerte</div>
-      <div style="font-family:var(--mono);font-size:9px;color:var(--dim);margin-bottom:8px">Deploy: 12.04.2026 11:10</div>
+      <div style="font-family:var(--mono);font-size:9px;color:var(--dim);margin-bottom:8px">Deploy: 12.04.2026 11:15</div>
       <h1>Leistungsverzeichnis<br>ausfüllen</h1>
       <div class="drop-zone" id="dropZone"
         ondragover="event.preventDefault();this.classList.add('over')"
@@ -627,11 +627,12 @@ async function runClaudeParser(){
         // Alternative: SFr./Fr./CHF price label
         if(!dots.length){
           var priceLabel=line.items.filter(function(it){
-            return /^(SFr\.?|Fr\.?|CHF)$/i.test(it.str.trim())&&it.x>=dotThresholdX;
+            return /SFr\.?|Fr\.|CHF/i.test(it.str)&&it.x>=dotThresholdX;
           });
           if(priceLabel.length){
             priceLabel.forEach(function(lbl){
-              var fieldX=lbl.x+(lbl.w||18)+3;
+              // Field starts after the right edge of the item containing SFr.
+              var fieldX=(lbl.x+(lbl.w||30))+3;
               var fieldW=Math.max(pageW*0.18, pageW-fieldX-5);
               dots.push({x:fieldX, y:lbl.y, w:fieldW, str:lbl.str, isSFr:true});
             });

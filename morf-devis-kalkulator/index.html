@@ -341,7 +341,7 @@ body{font-family:var(--font);font-size:13px;background:var(--bg);color:var(--tex
   <div class="drop-screen">
     <div class="drop-card">
       <div class="eyebrow">LV-Offerte</div>
-      <div style="font-family:var(--mono);font-size:9px;color:var(--dim);margin-bottom:8px">Deploy: 12.04.2026 15:43</div>
+      <div style="font-family:var(--mono);font-size:9px;color:var(--dim);margin-bottom:8px">Deploy: 12.04.2026 15:48</div>
       <h1>Leistungsverzeichnis<br>ausfüllen</h1>
       <div class="drop-zone" id="dropZone"
         ondragover="event.preventDefault();this.classList.add('over')"
@@ -809,17 +809,18 @@ function updateCondPreview(){
 }
 
 function getActiveConds(){
-  // Read from editable preview — innerText preserves line breaks in contenteditable
+  // activeConds is authoritative (set by checkboxes)
+  // Sync any manual edits from preview back into activeConds
   var preview=document.getElementById('condPreview');
-  if(preview && preview.innerText.trim()){
-    var raw=preview.innerText;
-    // Split on newlines OR on bullet character (handles concatenated bullets)
-    return raw.split(/\n|(?=•)/).map(function(l){
+  if(preview && preview.innerText.trim() && activeConds.length>0){
+    var lines=preview.innerText.split(/\n/).map(function(l){
       return l.replace(/^[•\-\s]+/,'').trim();
-    }).filter(function(l){ return l.length>0; });
+    }).filter(function(l){return l.length>0;});
+    if(lines.length===activeConds.length){
+      lines.forEach(function(line,i){ activeConds[i].text=line; });
+    }
   }
-  // Fallback: use activeConds array directly
-  return activeConds.map(function(c){ return c.text; });
+  return activeConds.map(function(a){ return a.text; });
 }
 
 // ── BEDINGUNGEN aus Supabase ──────────────────────────────────
@@ -941,14 +942,29 @@ function toggleSortMode(){
 function buildSortModePanel(cats,catsList){
   var el=document.getElementById('condCats'); el.innerHTML='';
 
+  // Only show currently checked conditions
+  var checkedTexts=activeConds.map(function(a){return a.text;});
+  var visible=dbBedingungen.filter(function(b){return checkedTexts.indexOf(b.text)>=0;});
+
+  if(visible.length===0){
+    var empty=document.createElement('div');
+    empty.style.cssText='text-align:center;color:var(--muted);font-size:11px;padding:16px';
+    empty.textContent='Keine Bedingungen ausgewählt';
+    el.appendChild(empty);
+    var exitBtn2=document.createElement('button'); exitBtn2.className='sort-mode-btn active';
+    exitBtn2.textContent='✓ Sortierung abschliessen'; exitBtn2.onclick=toggleSortMode;
+    el.appendChild(exitBtn2);
+    return;
+  }
+
   // Sort mode header
   var hdr=document.createElement('div');
   hdr.style.cssText='font-size:10px;color:var(--muted);margin-bottom:8px;padding:6px 8px;background:#fffbe6;border-radius:6px;border:1px solid var(--yellow)';
-  hdr.textContent='⇅ Zeile ziehen um Reihenfolge ändern — zwischen Kategorien möglich';
+  hdr.textContent='⇅ Zeile ziehen um Reihenfolge ändern ('+visible.length+' ausgewählt)';
   el.appendChild(hdr);
 
-  // Flat list grouped by category with dividers
-  dbBedingungen.forEach(function(entry,globalIdx){
+  // Flat list of only checked conditions
+  visible.forEach(function(entry,idx){
     var kat=entry.kategorie;
     // Insert category divider when category changes
     var prev=globalIdx>0?dbBedingungen[globalIdx-1].kategorie:null;
@@ -972,7 +988,7 @@ function buildSortModePanel(cats,catsList){
     // Drag events
     row.draggable=true;
     row.addEventListener('dragstart',function(e){
-      _sortDragSrc=globalIdx;
+      _sortDragSrc=idx;
       e.dataTransfer.effectAllowed='move';
       setTimeout(function(){row.classList.add('dragging');},0);
     });
@@ -983,24 +999,25 @@ function buildSortModePanel(cats,catsList){
     row.addEventListener('dragover',function(e){
       e.preventDefault(); e.dataTransfer.dropEffect='move';
       el.querySelectorAll('.cond-flat-item').forEach(function(r){r.classList.remove('drag-over');});
-      if(_sortDragSrc!==null&&_sortDragSrc!==globalIdx) row.classList.add('drag-over');
+      if(_sortDragSrc!==null&&_sortDragSrc!==idx) row.classList.add('drag-over');
     });
     row.addEventListener('drop',function(e){
       e.preventDefault();
       row.classList.remove('drag-over');
-      if(_sortDragSrc===null||_sortDragSrc===globalIdx) return;
-      var moved=dbBedingungen.splice(_sortDragSrc,1)[0];
-      // Find new target index after splice
-      var tgtEl=el.querySelectorAll('.cond-flat-item');
-      var newGlobalIdx=parseInt(row.dataset.idx);
-      if(_sortDragSrc<newGlobalIdx) newGlobalIdx--;
-      dbBedingungen.splice(newGlobalIdx,0,moved);
-      // Update category of moved item if it changed
-      var newKat=_inferKat(newGlobalIdx);
-      var katChanged=moved.kategorie!==newKat;
-      if(katChanged) moved.kategorie=newKat;
-      // Save: sort_order for all, kategorie if changed
-      _saveFlatOrder(moved.id, katChanged?newKat:null);
+      if(_sortDragSrc===null||_sortDragSrc===idx) return;
+      // Reorder activeConds
+      var srcAcIdx=_sortDragSrc, dstAcIdx=idx;
+      var movedAc=activeConds.splice(srcAcIdx,1)[0];
+      if(srcAcIdx<dstAcIdx) dstAcIdx--;
+      activeConds.splice(dstAcIdx,0,movedAc);
+      // Also reorder in dbBedingungen to keep in sync
+      var srcDb=dbBedingungen.findIndex(function(b){return b.text===movedAc.text;});
+      var dstDb=dbBedingungen.findIndex(function(b){return b.text===visible[dstAcIdx<visible.length?dstAcIdx:visible.length-1].text;});
+      if(srcDb>=0&&dstDb>=0&&srcDb!==dstDb){
+        var movedDb=dbBedingungen.splice(srcDb,1)[0];
+        dbBedingungen.splice(dstDb,0,movedDb);
+      }
+      updateCondPreview();
       buildCondPanel();
     });
   });

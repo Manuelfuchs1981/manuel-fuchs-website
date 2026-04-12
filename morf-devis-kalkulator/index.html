@@ -324,7 +324,7 @@ body{font-family:var(--font);font-size:13px;background:var(--bg);color:var(--tex
   <div class="drop-screen">
     <div class="drop-card">
       <div class="eyebrow">LV-Offerte</div>
-      <div style="font-family:var(--mono);font-size:9px;color:var(--dim);margin-bottom:8px">Deploy: 12.04.2026 15:32</div>
+      <div style="font-family:var(--mono);font-size:9px;color:var(--dim);margin-bottom:8px">Deploy: 12.04.2026 15:38</div>
       <h1>Leistungsverzeichnis<br>ausfüllen</h1>
       <div class="drop-zone" id="dropZone"
         ondragover="event.preventDefault();this.classList.add('over')"
@@ -777,18 +777,17 @@ function updateCondPreview(){
 }
 
 function getActiveConds(){
-  // Read directly from editable preview — user may have modified text
+  // Read from editable preview — innerText preserves line breaks in contenteditable
   var preview=document.getElementById('condPreview');
-  if(preview && preview.textContent.trim()){
-    // Split on bullet points
-    return preview.textContent.split(/\n/).map(function(l){
+  if(preview && preview.innerText.trim()){
+    var raw=preview.innerText;
+    // Split on newlines OR on bullet character (handles concatenated bullets)
+    return raw.split(/\n|(?=•)/).map(function(l){
       return l.replace(/^[•\-\s]+/,'').trim();
     }).filter(function(l){ return l.length>0; });
   }
-  var manual=document.getElementById('condManual')?document.getElementById('condManual').value.trim():'';
-  var lines=activeConds.map(function(c){ return c.text; });
-  if(manual) manual.split('\n').forEach(function(l){ if(l.trim()) lines.push(l.trim()); });
-  return lines;
+  // Fallback: use activeConds array directly
+  return activeConds.map(function(c){ return c.text; });
 }
 
 // ── BEDINGUNGEN aus Supabase ──────────────────────────────────
@@ -1349,7 +1348,7 @@ async function savePdf(){
       var bulletChar='\u2022';
       var bulletW=7;
       var textX=leftX+bulletW;
-      var maxTextW=pW-textX-56.5;
+      var maxTextW=rightX-textX; // full width to right margin
 
       function wrapDB(text,mW){
         var words=text.split(' '),lns=[],cur='';

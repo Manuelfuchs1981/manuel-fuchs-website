@@ -249,7 +249,7 @@ body{font-family:var(--font);font-size:13px;background:var(--bg);color:var(--tex
   <div class="drop-screen">
     <div class="drop-card">
       <div class="eyebrow">LV-Offerte</div>
-      <div style="font-family:var(--mono);font-size:9px;color:var(--dim);margin-bottom:8px">Deploy: 12.04.2026 10:10</div>
+      <div style="font-family:var(--mono);font-size:9px;color:var(--dim);margin-bottom:8px">Deploy: 12.04.2026 10:19</div>
       <h1>Leistungsverzeichnis<br>ausfüllen</h1>
       <div class="drop-zone" id="dropZone"
         ondragover="event.preventDefault();this.classList.add('over')"
@@ -520,60 +520,50 @@ async function runClaudeParser(){
       var pi=pages[i];
       showToast('Seite '+(pi+1)+' / '+pjsDoc.numPages+' \u2026','info');
 
-      // ── 1. PDF.js: text items + column detection ──────────────
+      // ── 1. PDF.js: all text items at scale=1 ──────────────────
       var page=await pjsDoc.getPage(pi+1);
       var vp1=page.getViewport({scale:1});
+      var pageW=vp1.width, pageH=vp1.height;
       var tc=await page.getTextContent();
-      var items=[]; // {str, x, y, w, h}
+      var allItems=[];
       tc.items.forEach(function(it){
         if(!it.str.trim()) return;
-        items.push({
-          str: it.str.trim(),
-          x:   it.transform[4],
-          y:   it.transform[5],
-          w:   it.width||0,
-          h:   Math.abs(it.transform[3])||10
+        allItems.push({str:it.str.trim(), x:it.transform[4], y:it.transform[5],
+          w:it.width||0, h:Math.abs(it.transform[3])||10});
+      });
+
+      // ── 2. Group items into lines ──────────────────────────────
+      var lineMap={};
+      allItems.forEach(function(it){
+        var b=Math.round(it.y/3)*3;
+        if(!lineMap[b]) lineMap[b]={y:it.y, items:[]};
+        lineMap[b].items.push(it);
+      });
+      var lines=Object.values(lineMap).sort(function(a,b){ return b.y-a.y; });
+
+      // ── 3. Find price rows: lines with dot items ───────────────
+      // Dots = text item with 4+ consecutive dots → exact x, y, w
+      var pdfRows=[];
+      lines.forEach(function(line){
+        var dots=line.items.filter(function(it){ return /\.{4,}/.test(it.str); });
+        if(!dots.length) return;
+        dots.sort(function(a,b){ return a.x-b.x; });
+        var nonDots=line.items.filter(function(it){ return !/\.{4,}/.test(it.str); });
+        var txt=nonDots.map(function(it){ return it.str; }).join(' ').trim();
+        pdfRows.push({
+          y:    line.y,
+          text: txt,
+          ep:   dots[0],                          // exact dot item → x, w
+          gp:   dots.length>1 ? dots[dots.length-1] : null
         });
       });
-
-      // Find column headers (EH Preis / EP / Totalbetrag / GP variants)
-      // Returns {left, right, center} of column in PDF points
-      function findCol(patterns){
-        for(var pi2=0;pi2<items.length;pi2++){
-          var it=items[pi2];
-          for(var j=0;j<patterns.length;j++){
-            if(it.str.toLowerCase().indexOf(patterns[j].toLowerCase())>=0){
-              return {center: it.x + it.w/2, left: it.x, right: it.x+it.w, y: it.y};
-            }
-          }
-        }
-        // Try combining adjacent items (e.g. "EH" + " " + "Preis")
-        for(var pi2=0;pi2<items.length-1;pi2++){
-          var combined=(items[pi2].str+' '+items[pi2+1].str).trim();
-          for(var j=0;j<patterns.length;j++){
-            if(combined.toLowerCase().indexOf(patterns[j].toLowerCase())>=0){
-              return {center:(items[pi2].x+items[pi2+1].x+items[pi2+1].w)/2,
-                      left:items[pi2].x, right:items[pi2+1].x+items[pi2+1].w,
-                      y:items[pi2].y};
-            }
-          }
-        }
-        return null;
-      }
-
-      var epCol = findCol(['EH Preis','EH-Preis','Einheitspreis','EP','Prix unit','Prix U']);
-      var gpCol = findCol(['Totalbetrag','Total betrag','Total','Montant','GP','Gesamtpreis','Prix total']);
-      console.log('[PDF.js] epCol='+JSON.stringify(epCol)+' gpCol='+JSON.stringify(gpCol));
-
-      // Build line map: y_bucket → [{str,x,y,w,h}]
-      var lineMap={};
-      items.forEach(function(it){
-        var b=Math.round(it.y/3)*3;
-        if(!lineMap[b]) lineMap[b]=[];
-        lineMap[b].push(it);
+      console.log('[PDF.js] Page '+pi+': '+pdfRows.length+' dot-rows');
+      pdfRows.forEach(function(r){
+        console.log('  y='+r.y.toFixed(1)+' ep.x='+r.ep.x.toFixed(1)
+          +' ep.w='+r.ep.w.toFixed(1)+' txt="'+r.text.slice(0,50)+'"');
       });
 
-      // ── 2. Render page for display + Claude ───────────────────
+      // ── 4. Render page ─────────────────────────────────────────
       var vp=page.getViewport({scale:RENDER_SCALE});
       var canvas=document.createElement('canvas');
       canvas.width=vp.width; canvas.height=vp.height;
@@ -587,108 +577,86 @@ async function runClaudeParser(){
       wrap.appendChild(canvas); wrap.appendChild(overlay);
       document.getElementById('fillPages').appendChild(wrap);
 
-      // ── 3. Claude: identify rows (no coordinates) ─────────────
-      var clRows=await askClaude(canvas);
+      // ── 5. Claude: label each dot-row ─────────────────────────
+      var clRows=await askClaude(canvas, pdfRows);
       trackCost(0.008);
-      console.log('[Claude] Page '+pi+':',clRows.length,'rows',JSON.stringify(clRows));
+      console.log('[Claude] Page '+pi+': '+clRows.length+' labels');
 
-      // ── 4. Match Claude rows to PDF.js coordinates ────────────
-      var pageW=vp1.width, pageH=vp1.height;
-      var usedYs=[];
+      // ── 6. Match labels to dot-rows, place fields ──────────────
+      var S=RENDER_SCALE;
+      var rowH=Math.round(13*S);
 
-      clRows.forEach(function(cl){
-        var marker=(cl.marker||'').trim();
-        var approxFraction=cl.approx_y||0.5;
-
-        // Find Y: search lineMap for marker text
-        var exactY=null;
-        var bestScore=0;
-        Object.values(lineMap).forEach(function(lineItems){
-          var lineText=lineItems.map(function(it){return it.str;}).join(' ');
-          if(lineText.indexOf(marker)>=0){
-            var score=marker.length/Math.max(1,lineText.length);
-            // Prefer lines not already used
-            var alreadyUsed=usedYs.some(function(y){ return Math.abs(y-lineItems[0].y)<5; });
-            if(score>bestScore && !alreadyUsed){
-              bestScore=score; exactY=lineItems[0].y;
-            }
+      if(pdfRows.length===0){
+        // No dots: Claude provides full info, use approx_y + column headers
+        var epColX=null, gpColX=null, epColW=pageW*0.13, gpColW=pageW*0.15;
+        for(var ii=0;ii<allItems.length-1;ii++){
+          var s1=allItems[ii].str, s2=allItems[ii+1].str;
+          var combined=(s1+' '+s2).toLowerCase();
+          if(!epColX && (combined.indexOf('eh preis')>=0||combined.indexOf('einheitspreis')>=0||s1.toLowerCase()==='ep')){
+            epColX=allItems[ii].x;
+            if(allItems[ii+1] && Math.abs(allItems[ii+1].y-allItems[ii].y)<5)
+              epColW=Math.max((allItems[ii].w+allItems[ii+1].w)*2.5, pageW*0.12);
           }
+          if(!gpColX && (combined.indexOf('totalbetrag')>=0||combined.indexOf('gesamtpreis')>=0||s1.toLowerCase()==='gp')){
+            gpColX=allItems[ii].x; gpColW=pageW-allItems[ii].x-4;
+          }
+        }
+        if(!epColX) epColX=pageW*0.68;
+        if(!gpColX){ gpColX=epColX+epColW+3; gpColW=pageW-gpColX-4; }
+
+        clRows.forEach(function(cl){
+          var exactY=pageH*(1-(cl.approx_y||0.5));
+          // Refine Y via marker text
+          if(cl.marker){
+            lines.forEach(function(line){
+              var lt=line.items.map(function(it){return it.str;}).join(' ');
+              if(lt.indexOf(cl.marker)>=0) exactY=line.y;
+            });
+          }
+          var canvasY=Math.round((pageH-exactY)*S)-rowH+2;
+          var epBox={x:Math.round(epColX*S), y:canvasY, w:Math.round(epColW*S), h:rowH};
+          var gpBox=cl.has_gp===false ? null :
+            {x:Math.round(gpColX*S), y:canvasY,
+             w:Math.min(Math.round(gpColW*S), canvas.width-Math.round(gpColX*S)-2), h:rowH};
+          var key=cl.pos||('p'+pi+'_'+Math.round(exactY));
+          if(parsedPos[key]) key+='_b';
+          parsedPos[key]={pos:cl.pos||key,qty:cl.qty||0,unit:cl.unit||'',
+            ep:0,status:'price',pageIdx:pi,canvasW:canvas.width,canvasH:canvas.height,
+            epBox:epBox,gpBox:gpBox};
+          placeField(key,overlay,parsedPos[key]);
         });
+      } else {
+        // Match Claude labels to PDF.js dot-rows 1:1 by order
+        var n=Math.max(clRows.length, pdfRows.length);
+        for(var idx=0;idx<pdfRows.length;idx++){
+          var row=pdfRows[idx];
+          var cl=clRows[idx]||{pos:'p'+pi+'_'+idx, qty:0, unit:''};
 
-        // Fallback: individual item match
-        if(!exactY){
-          var itMatch=items.find(function(it){
-            return it.str.indexOf(marker)>=0 &&
-              !usedYs.some(function(y){ return Math.abs(y-it.y)<5; });
-          });
-          if(itMatch) exactY=itMatch.y;
-        }
-
-        // Final fallback: approximate Y from Claude's fraction
-        if(!exactY) exactY=pageH*(1-approxFraction);
-        usedYs.push(exactY);
-
-        // ── Column positions → field boxes ────────────────────
-        // If columns found from headers: use them
-        // Otherwise: estimate from page width
-        var epLeft, epRight, gpLeft, gpRight;
-
-        if(epCol){
-          // Estimate column width from header width * 3 (headers are narrow, fields are wider)
-          var colW = epCol.w>20 ? epCol.w*2.5 : (gpCol ? gpCol.left-epCol.left : pageW*0.15);
-          epLeft  = epCol.left;
-          epRight = epCol.left + colW;
-        } else {
-          epLeft  = pageW * 0.68;
-          epRight = pageW * 0.82;
-        }
-
-        if(cl.has_gp!==false && gpCol){
-          var gpColW = gpCol.w>20 ? gpCol.w*2.5 : (pageW-gpCol.left)*0.9;
-          gpLeft  = gpCol.left;
-          gpRight = gpCol.left + gpColW;
-        } else if(cl.has_gp!==false && !gpCol && epCol){
-          gpLeft  = epRight + 2;
-          gpRight = pageW * 0.97;
-        } else {
-          gpLeft=null; gpRight=null;
-        }
-
-        // Convert PDF points → canvas pixels
-        var S=RENDER_SCALE;
-        var rowH=Math.round(14*S); // field height
-        // PDF Y is from bottom; canvas Y from top
-        var canvasY=Math.round((pageH-exactY)*S) - rowH + 2;
-
-        var epBox={
-          x: Math.round(epLeft*S),
-          y: canvasY,
-          w: Math.round((epRight-epLeft)*S),
-          h: rowH
-        };
-        var gpBox=null;
-        if(gpLeft!==null){
-          gpBox={
-            x: Math.round(gpLeft*S),
-            y: canvasY,
-            w: Math.round(Math.min(gpRight-gpLeft, pageW-gpLeft)*S),
-            h: rowH
+          // Convert exact dot positions → canvas pixels
+          var canvasY=Math.round((pageH-row.y)*S)-rowH+2;
+          var epBox={
+            x:   Math.round(row.ep.x*S),
+            y:   canvasY,
+            w:   Math.round(row.ep.w*S),
+            h:   rowH
           };
-          // Clamp to canvas width
-          if(gpBox.x+gpBox.w > canvas.width) gpBox.w=canvas.width-gpBox.x-2;
-        }
+          var gpBox=row.gp ? {
+            x:   Math.round(row.gp.x*S),
+            y:   canvasY,
+            w:   Math.min(Math.round(row.gp.w*S), canvas.width-Math.round(row.gp.x*S)-2),
+            h:   rowH
+          } : null;
 
-        var key=cl.pos; if(parsedPos[key]) key=cl.pos+'_p'+pi;
-        parsedPos[key]={
-          pos:cl.pos, qty:cl.qty||0, unit:cl.unit||'',
-          ep:0, status:'price', pageIdx:pi,
-          canvasW:canvas.width, canvasH:canvas.height,
-          epBox:epBox, gpBox:gpBox
-        };
-        placeField(key, overlay, parsedPos[key]);
-        console.log('[Match]',cl.pos,'Y='+exactY.toFixed(1),
-          'ep=['+epBox.x+','+epBox.y+','+epBox.w+']');
-      });
+          var key=cl.pos||('p'+pi+'_'+idx);
+          if(parsedPos[key]) key+='_p'+pi;
+          parsedPos[key]={pos:cl.pos||key,qty:cl.qty||0,unit:cl.unit||'',
+            ep:0,status:'price',pageIdx:pi,canvasW:canvas.width,canvasH:canvas.height,
+            epBox:epBox,gpBox:gpBox};
+          placeField(key,overlay,parsedPos[key]);
+          console.log('[Place]',key,'y='+row.y.toFixed(1),
+            'ep=['+epBox.x+','+epBox.y+','+epBox.w+']');
+        }
+      }
     }
     showToast('\u2713 '+Object.keys(parsedPos).length+' Positionen erkannt','ok');
   } catch(e){
@@ -698,44 +666,48 @@ async function runClaudeParser(){
   }
 }
 
-async function askClaude(canvas){
+async function askClaude(canvas, pdfRows){
   var b64=canvas.toDataURL('image/jpeg',0.88).split(',')[1];
-  var prompt='Swiss NPK price list page.\n\n'
-    +'List every PRICE ROW — a line where a unit price must be entered.\n'
-    +'These lines have dotted areas, lines, brackets, or blank space in the price columns.\n\n'
-    +'For each price row return:\n'
-    +'- pos: position number as printed ("181>083", "111.004", "R 101")\n'
-    +'- marker: the shortest UNIQUE text that appears on the price row itself\n'
-    +'  Use the qty+unit combo (e.g. "4 St", "305 LE", "30.00 m")\n'
-    +'  or position number if it is on the same line as the price fields\n'
-    +'- qty: quantity on the price row (0 if open/per-unit)\n'
-    +'- unit: unit on the price row (St, m, LE, gl, kg, h, pauschal)\n'
-    +'- has_gp: true if a second price column (Totalbetrag) is visible, false if not\n'
-    +'- approx_y: vertical position as fraction of page height (0=top, 1=bottom)\n'
-    +'  This is a rough guide only — be as accurate as possible.\n\n'
-    +'Skip: section headers, Übertrag, totals, descriptions without price fields.\n'
-    +'If no price rows: []\n\n'
-    +'JSON only:\n'
-    +'[{"pos":"181>083","marker":"4 St","qty":4,"unit":"St","has_gp":true,"approx_y":0.08}]';
+  var prompt;
+
+  if(pdfRows.length>0){
+    // Context-aware: tell Claude exactly which rows PDF.js found
+    var rowList=pdfRows.map(function(r,i){
+      return (i+1)+'. context text: "'+r.text.slice(0,50)+'"';
+    }).join('\n');
+    prompt='Swiss NPK price list. PDF analysis found '+pdfRows.length
+      +' price row(s) by dotted lines, listed top to bottom:\n'
+      +rowList+'\n\n'
+      +'For each row (same order), return:\n'
+      +'- pos: position number visible near this row ("181>083", "111.004")\n'
+      +'- qty: quantity on this row (0 if open/per-unit)\n'
+      +'- unit: unit on this row (St, m, LE, gl, kg, h, pauschal)\n\n'
+      +'Return ONLY JSON array with exactly '+pdfRows.length+' entries:\n'
+      +'[{"pos":"181>083","qty":4,"unit":"St"},...]';
+  } else {
+    prompt='Swiss NPK price list. No dotted lines found on this page.\n\n'
+      +'List every price row where a unit price must be entered.\n'
+      +'Return:\n'
+      +'- pos: position number\n'
+      +'- qty: quantity (0 if open)\n'
+      +'- unit: unit\n'
+      +'- marker: unique text on the price row (qty+unit preferred, e.g. "4 St")\n'
+      +'- approx_y: vertical fraction 0=top 1=bottom\n'
+      +'- has_gp: true/false\n\n'
+      +'JSON only: [{"pos":"222.100","qty":30,"unit":"m","marker":"30.00 m","approx_y":0.4,"has_gp":true},...]';
+  }
+
   var resp=await fetch('https://api.anthropic.com/v1/messages',{
     method:'POST',
-    headers:{
-      'content-type':'application/json',
-      'x-api-key':CLAUDE_API_KEY,
-      'anthropic-version':'2023-06-01',
-      'anthropic-dangerous-direct-browser-access':'true'
-    },
-    body:JSON.stringify({
-      model:'claude-sonnet-4-20250514',
-      max_tokens:2000,
+    headers:{'content-type':'application/json','x-api-key':CLAUDE_API_KEY,
+      'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+    body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1500,
       messages:[{role:'user',content:[
         {type:'image',source:{type:'base64',media_type:'image/jpeg',data:b64}},
-        {type:'text',text:prompt}
-      ]}]
-    })
+        {type:'text',text:prompt}]}]})
   });
   if(!resp.ok){
-    var e=await resp.json().catch(function(){ return {}; });
+    var e=await resp.json().catch(function(){return{};});
     throw new Error('Claude API: '+((e.error&&e.error.message)||resp.status));
   }
   var data=await resp.json();
@@ -747,37 +719,36 @@ async function askClaude(canvas){
   catch(e){ console.error('[Claude] JSON error:',text); return []; }
 }
 
-
 // ── PLACE FIELD ───────────────────────────────────────────────
-function placeField(key, overlay, p){
+function placeField(key,overlay,p){
   var ep=makeField(key,'ep',p.epBox);
   ep.addEventListener('input',function(){
     var pp=parsedPos[key]; if(!pp) return;
     var val=this.value.trim().toLowerCase();
     var gpEl=overlay.querySelector('.fill-field.gp[data-key="'+key+'"]');
     if(val==='k'||val==='ka'||val==='k.a.'||val==='k. a.'){
-      pp.status='ka'; pp.ep=0; this.className='fill-field ka'; this.value='k. A.';
-      if(gpEl){ gpEl.value=''; }
+      pp.status='ka';pp.ep=0;this.className='fill-field ka';this.value='k. A.';
+      if(gpEl)gpEl.value='';
     } else if(val==='b'||val==='bauseits'){
-      pp.status='bauseits'; pp.ep=0; this.className='fill-field bauseits'; this.value='bauseits';
-      if(gpEl){ gpEl.value=''; }
+      pp.status='bauseits';pp.ep=0;this.className='fill-field bauseits';this.value='bauseits';
+      if(gpEl)gpEl.value='';
     } else if(val==='i'||val==='inkl.'||val==='inkl'){
-      pp.status='inkl'; pp.ep=0; this.className='fill-field bauseits'; this.value='inkl.';
-      if(gpEl){ gpEl.value=''; }
+      pp.status='inkl';pp.ep=0;this.className='fill-field bauseits';this.value='inkl.';
+      if(gpEl)gpEl.value='';
     } else {
       var n=parseFloat(val.replace(/[' ]/g,'').replace(',','.'));
       if(!isNaN(n)&&n>0){
-        pp.ep=n; pp.status='price'; this.className='fill-field filled';
-        if(gpEl&&pp.qty>0){ gpEl.value=fmtN(n*pp.qty); gpEl.className='fill-field gp filled'; }
+        pp.ep=n;pp.status='price';this.className='fill-field filled';
+        if(gpEl&&pp.qty>0){gpEl.value=fmtN(n*pp.qty);gpEl.className='fill-field gp filled';}
       } else if(val===''){
-        pp.ep=0; pp.status='price'; this.className='fill-field';
-        if(gpEl){ gpEl.value=''; gpEl.className='fill-field gp'; }
+        pp.ep=0;pp.status='price';this.className='fill-field';
+        if(gpEl){gpEl.value='';gpEl.className='fill-field gp';}
       }
     }
   });
   ep.addEventListener('focus',function(){
     var pp=parsedPos[key];
-    if(pp&&pp.ep>0&&pp.status==='price'){ this.value=pp.ep.toString(); this.select(); }
+    if(pp&&pp.ep>0&&pp.status==='price'){this.value=pp.ep.toString();this.select();}
   });
   ep.addEventListener('blur',function(){
     var pp=parsedPos[key];
@@ -788,22 +759,22 @@ function placeField(key, overlay, p){
       e.preventDefault();
       var all=Array.from(document.querySelectorAll('.fill-field:not(.gp)'));
       var idx=all.indexOf(this);
-      if(idx>=0&&idx<all.length-1){ all[idx+1].focus(); all[idx+1].select(); }
+      if(idx>=0&&idx<all.length-1){all[idx+1].focus();all[idx+1].select();}
     }
   });
   overlay.appendChild(ep);
   if(p.gpBox){
     var gp=makeField(key,'gp',p.gpBox);
-    gp.readOnly=true; gp.tabIndex=-1;
+    gp.readOnly=true;gp.tabIndex=-1;
     overlay.appendChild(gp);
   }
   var del=document.createElement('button');
-  del.className='del-btn'; del.textContent='×'; del.title='Ausblenden';
+  del.className='del-btn';del.textContent='\u00d7';del.title='Ausblenden';
   var box=p.gpBox||p.epBox;
-  del.style.left=(box.x+box.w+3)+'px'; del.style.top=p.epBox.y+'px';
+  del.style.left=(box.x+box.w+3)+'px';del.style.top=p.epBox.y+'px';
   del.addEventListener('click',function(){
-    overlay.querySelectorAll('[data-key="'+key+'"]').forEach(function(el){ el.remove(); });
-    del.remove(); delete parsedPos[key];
+    overlay.querySelectorAll('[data-key="'+key+'"]').forEach(function(el){el.remove();});
+    del.remove();delete parsedPos[key];
   });
   overlay.appendChild(del);
 }

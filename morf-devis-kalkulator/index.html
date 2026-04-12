@@ -317,7 +317,7 @@ body{font-family:var(--font);font-size:13px;background:var(--bg);color:var(--tex
   <div class="drop-screen">
     <div class="drop-card">
       <div class="eyebrow">LV-Offerte</div>
-      <div style="font-family:var(--mono);font-size:9px;color:var(--dim);margin-bottom:8px">Deploy: 12.04.2026 14:48</div>
+      <div style="font-family:var(--mono);font-size:9px;color:var(--dim);margin-bottom:8px">Deploy: 12.04.2026 15:06</div>
       <h1>Leistungsverzeichnis<br>ausfüllen</h1>
       <div class="drop-zone" id="dropZone"
         ondragover="event.preventDefault();this.classList.add('over')"
@@ -1220,20 +1220,20 @@ async function savePdf(){
     var black=PDFLib.rgb(0,0,0);
     var yellow=PDFLib.rgb(0.94,0.75,0);
 
+    // Date
     var today=new Date();
-    var dateStr=today.getDate().toString().padStart(2,'0')+'.'+(today.getMonth()+1).toString().padStart(2,'0')+'.'+today.getFullYear();
-    // Project title at pH2-250 (good height confirmed)
-    var today=new Date();
-    var dateStr=today.getDate().toString().padStart(2,'0')+'.'+(today.getMonth()+1).toString().padStart(2,'0')+'.'+today.getFullYear();
+    var dateStr=today.getDate().toString().padStart(2,'0')+'.'
+      +(today.getMonth()+1).toString().padStart(2,'0')+'.'+today.getFullYear();
+
+    // Project title at pH2-250
     var projName=pdfProjBez||currentFile.replace('.pdf','').replace('.PDF','');
     if(pdfProjNr) projName=pdfProjNr+' \u2014 '+projName;
     dbPage.drawText(projName,{x:leftX,y:pH2-250,size:16,font:dbFontB,color:black,maxWidth:pW-113});
 
-    // Price summary: 50 pts below title → starts at pH2-300
-    // Yellow separator line
-    dbPage.drawLine({start:{x:leftX,y:pH2-300},end:{x:rightX,y:pH2-300},thickness:1,color:yellow});
+    // Price summary: yellow separator 50pts below title
+    dbPage.drawLine({start:{x:leftX,y:pH2-310},end:{x:rightX,y:pH2-310},thickness:1,color:yellow});
 
-    var ty=pH2-320; var lineH=19;
+    var ty=pH2-330; var lineH=19;
     function drawRow(label,value,bold){
       if(bold){
         dbPage.drawText(label,{x:leftX,y:ty,size:11,font:dbFontB,color:black});
@@ -1252,21 +1252,23 @@ async function savePdf(){
       drawRow('Nettopreis vor MWST','CHF '+fCH(nettoBrutto),false);
     }
     drawRow('MWST 8.1%','CHF '+fCH(mwst),false);
-    // Bold separator before total
-    dbPage.drawLine({start:{x:leftX,y:ty+2},end:{x:rightX,y:ty+2},thickness:1,color:black});
-    ty-=6;
+
+    // Bold separator — with enough clearance above the bold text
+    ty-=6;  // extra gap before separator
+    dbPage.drawLine({start:{x:leftX,y:ty+lineH-4},end:{x:rightX,y:ty+lineH-4},thickness:1,color:black});
     drawRow('Netto inkl. MWST','CHF '+fCH(netto),true);
 
-    // Conditions with proper hanging indent
+    // Conditions: 50pts below price summary
     var conds=getActiveConds();
     if(conds.length>0){
-      ty-=20;
-      dbPage.drawText('Bedingungen:',{x:leftX,y:ty,size:10,font:dbFontB,color:black}); ty-=16;
+      ty-=50;
+      dbPage.drawText('Bedingungen:',{x:leftX,y:ty,size:10,font:dbFontB,color:black});
+      ty-=16;  // line break after heading
 
       var condSz=9, condLineH=13;
       var bulletChar='\u2022';
-      var bulletW=7; // fixed indent: bullet + space
-      var textX=leftX+bulletW; // text always starts here
+      var bulletW=7;
+      var textX=leftX+bulletW;
       var maxTextW=pW-textX-56.5;
 
       function wrapDB(text,mW){
@@ -1282,30 +1284,26 @@ async function savePdf(){
 
       conds.forEach(function(cd){
         if(ty<100) return;
-        var wrapped=wrapDB(cd, maxTextW);
-        // Bullet on first line only
+        var wrapped=wrapDB(cd,maxTextW);
         dbPage.drawText(bulletChar,{x:leftX,y:ty,size:condSz,font:dbFont,color:gray});
         dbPage.drawText(wrapped[0],{x:textX,y:ty,size:condSz,font:dbFont,color:gray});
         ty-=condLineH;
-        // Continuation lines: aligned with text (not bullet)
         for(var wi=1;wi<wrapped.length;wi++){
           if(ty<100) return;
           dbPage.drawText(wrapped[wi],{x:textX,y:ty,size:condSz,font:dbFont,color:gray});
           ty-=condLineH;
         }
-        ty-=3; // extra spacing between conditions
+        ty-=4;
       });
     }
 
-    // Ort und Datum (auto from Filiale)
+    // Ort und Datum — no label, just "Oberglatt, 12.04.2026"
     var filialeOrt=(function(){
       var prefix=String(pdfProjNr||'').slice(0,3);
       if(PROJ_FILIALE[prefix]) return PROJ_FILIALE[prefix].ort;
       return 'Oberglatt';
     })();
-    var ortDatumStr=filialeOrt+', '+dateStr;
-    dbPage.drawText('Ort, Datum:',{x:leftX,y:140,size:9,font:dbFont,color:gray});
-    dbPage.drawText(ortDatumStr,{x:leftX+60,y:140,size:10,font:dbFontB,color:black});
+    dbPage.drawText(filialeOrt+', '+dateStr,{x:leftX,y:110,size:10,font:dbFont,color:gray});
     // Copy all main PDF pages after deckblatt
     var mainPageIndices=mainDoc.getPageIndices();
     var copiedPages=await outDoc.copyPages(mainDoc,mainPageIndices);

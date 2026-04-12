@@ -224,6 +224,11 @@ body{font-family:var(--font);font-size:13px;background:var(--bg);color:var(--tex
 .cond-item-edit{background:none;border:none;cursor:pointer;color:var(--dim);
   font-size:11px;padding:0 3px;opacity:.5;flex-shrink:0}
 .cond-item-edit:hover{color:#927200;opacity:1}
+.cond-drag-handle{background:none;border:none;cursor:grab;color:var(--dim);
+  font-size:13px;padding:0 4px 0 0;opacity:.35;flex-shrink:0;user-select:none}
+.cond-drag-handle:hover{opacity:.8;cursor:grab}
+.cond-item.dragging{opacity:.35;background:#fff8cc}
+.cond-item.drag-over{border-top:2px solid var(--yellow)}
 .cond-edit-form{background:#fff8cc;border:1px solid var(--yellow);border-radius:7px;
   padding:10px;margin:4px 0 8px 0}
 .cond-item-del{margin-left:auto;background:none;border:none;cursor:pointer;
@@ -324,7 +329,7 @@ body{font-family:var(--font);font-size:13px;background:var(--bg);color:var(--tex
   <div class="drop-screen">
     <div class="drop-card">
       <div class="eyebrow">LV-Offerte</div>
-      <div style="font-family:var(--mono);font-size:9px;color:var(--dim);margin-bottom:8px">Deploy: 12.04.2026 15:38</div>
+      <div style="font-family:var(--mono);font-size:9px;color:var(--dim);margin-bottom:8px">Deploy: 12.04.2026 15:40</div>
       <h1>Leistungsverzeichnis<br>ausfüllen</h1>
       <div class="drop-zone" id="dropZone"
         ondragover="event.preventDefault();this.classList.add('over')"
@@ -686,6 +691,14 @@ function buildCondPanel(){
       item.appendChild(cb); item.appendChild(lbl);
       // Edit + Delete — proper DOM approach
       if(entry.id){
+        // Drag handle
+        var dragH=document.createElement('button'); dragH.className='cond-drag-handle';
+        dragH.innerHTML='&#8942;&#8942;'; dragH.title='Verschieben';
+        dragH.style.cssText='background:none;border:none;cursor:grab;color:var(--dim);font-size:11px;padding:0 4px 0 0;opacity:.35;flex-shrink:0';
+        item.insertBefore(dragH,item.firstChild);
+        // Wire drag-and-drop
+        setupDragItem(item,entry);
+
         var editBtn=document.createElement('button'); editBtn.className='cond-item-edit';
         editBtn.innerHTML='&#9998;'; editBtn.title='Bearbeiten';
         var delBtn=document.createElement('button'); delBtn.className='cond-item-del';
@@ -826,6 +839,56 @@ async function deleteBedingung(id){
   showToast('Gelöscht', 'ok');
   dbBedingungen = dbBedingungen.filter(function(b){ return b.id !== id; });
   buildCondPanel();
+}
+
+// ── DRAG & DROP sort order ────────────────────────────────────
+var _dragSrcId=null, _dragSrcKat=null;
+
+async function saveSortOrder(katName){
+  if(!supabase) return;
+  var items=dbBedingungen.filter(function(b){return b.kategorie===katName;});
+  // update each item's sort_order based on current array position
+  var promises=items.map(function(b,i){
+    return supabase.from('bedingungen').update({sort_order:i}).eq('id',b.id);
+  });
+  await Promise.all(promises);
+}
+
+function setupDragItem(itemEl, entry){
+  itemEl.draggable=true;
+  itemEl.addEventListener('dragstart',function(e){
+    _dragSrcId=entry.id; _dragSrcKat=entry.kategorie;
+    e.dataTransfer.effectAllowed='move';
+    e.dataTransfer.setData('text/plain',entry.id);
+    setTimeout(function(){ itemEl.classList.add('dragging'); },0);
+  });
+  itemEl.addEventListener('dragend',function(){
+    itemEl.classList.remove('dragging');
+    document.querySelectorAll('.cond-item').forEach(function(el){
+      el.classList.remove('drag-over');
+    });
+  });
+  itemEl.addEventListener('dragover',function(e){
+    e.preventDefault(); e.dataTransfer.dropEffect='move';
+    document.querySelectorAll('.cond-item').forEach(function(el){
+      el.classList.remove('drag-over');
+    });
+    if(_dragSrcKat===entry.kategorie && _dragSrcId!==entry.id)
+      itemEl.classList.add('drag-over');
+  });
+  itemEl.addEventListener('drop',function(e){
+    e.preventDefault();
+    itemEl.classList.remove('drag-over');
+    if(!_dragSrcId||_dragSrcId===entry.id||_dragSrcKat!==entry.kategorie) return;
+    // Reorder in dbBedingungen array
+    var srcIdx=dbBedingungen.findIndex(function(b){return b.id===_dragSrcId;});
+    var dstIdx=dbBedingungen.findIndex(function(b){return b.id===entry.id;});
+    if(srcIdx<0||dstIdx<0) return;
+    var moved=dbBedingungen.splice(srcIdx,1)[0];
+    dbBedingungen.splice(dstIdx,0,moved);
+    saveSortOrder(entry.kategorie);
+    buildCondPanel();
+  });
 }
 
 async function updateBedingung(id,titel,text){

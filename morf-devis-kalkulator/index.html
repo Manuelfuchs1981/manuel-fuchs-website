@@ -10,6 +10,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
 <script src="https://unpkg.com/tesseract.js@5/dist/tesseract.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
@@ -257,12 +258,49 @@ body{font-family:var(--font);font-size:13px;background:var(--bg);color:var(--tex
   </div>
 </div>
 
+
+<!-- VIEW: LOGIN -->
+<div class="view active" id="vLogin">
+  <div class="drop-screen">
+    <div class="drop-card" style="max-width:380px">
+      <div class="eyebrow">Morf-Devis</div>
+      <h1 style="font-size:20px;margin-bottom:20px">Anmelden</h1>
+      <div id="loginMsg" style="display:none;padding:9px 12px;border-radius:7px;font-size:12px;margin-bottom:12px;border-left:3px solid"></div>
+      <div style="margin-bottom:12px">
+        <label class="modal-label" style="margin-bottom:5px;display:block">E-Mail</label>
+        <input class="modal-input" id="loginEmail" type="email" placeholder="name@morf-ag.ch" autocomplete="email">
+      </div>
+      <div id="pwField" style="margin-bottom:16px">
+        <label class="modal-label" style="margin-bottom:5px;display:block">Passwort</label>
+        <input class="modal-input" id="loginPw" type="password" placeholder="••••••••" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()">
+      </div>
+      <button onclick="doLogin()" id="loginBtn"
+        style="width:100%;padding:11px;background:var(--text);color:#fff;border:none;border-radius:8px;
+        font-family:var(--font);font-size:13px;font-weight:600;cursor:pointer;margin-bottom:10px">
+        Anmelden
+      </button>
+      <button onclick="showReset()" id="resetLink"
+        style="background:none;border:none;color:var(--muted);font-size:11px;cursor:pointer;font-family:var(--font);width:100%;text-align:center">
+        Passwort vergessen?
+      </button>
+      <div id="resetSection" style="display:none;margin-top:14px;padding-top:14px;border-top:1px solid var(--border)">
+        <p style="font-size:11px;color:var(--muted);margin-bottom:10px">Wir senden dir einen Reset-Link per E-Mail.</p>
+        <button onclick="doReset()" 
+          style="width:100%;padding:9px;background:var(--bg);color:var(--text);border:1.5px solid var(--border2);
+          border-radius:8px;font-family:var(--font);font-size:12px;font-weight:500;cursor:pointer">
+          Reset-Link senden
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- VIEW: DROP -->
-<div class="view active" id="vDrop">
+<div class="view" id="vDrop">
   <div class="drop-screen">
     <div class="drop-card">
       <div class="eyebrow">LV-Offerte</div>
-      <div style="font-family:var(--mono);font-size:9px;color:var(--dim);margin-bottom:8px">Deploy: 12.04.2026 14:25</div>
+      <div style="font-family:var(--mono);font-size:9px;color:var(--dim);margin-bottom:8px">Deploy: 12.04.2026 14:29</div>
       <h1>Leistungsverzeichnis<br>ausfüllen</h1>
       <div class="drop-zone" id="dropZone"
         ondragover="event.preventDefault();this.classList.add('over')"
@@ -1148,10 +1186,87 @@ async function savePdf(){
     showToast('PDF heruntergeladen ✓','ok');
   }catch(e){console.error(e);showToast('Fehler: '+e.message,'err');}
 }
+
+// ── SUPABASE AUTH ─────────────────────────────────────────────
+var SUPABASE_URL = 'https://mwwrfwalfqjnyapowdlu.supabase.co';
+var SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im13d3Jmd2FsZnFqbnlhcG93ZGx1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU5ODU0ODMsImV4cCI6MjA5MTU2MTQ4M30.9K_36ccGPa2dGzGIFyf-mEANfgHdA7E6YlYkBn5tl-Y';
+var supabase = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY) : null;
+
+function loginMsg(msg, type){
+  var el = document.getElementById('loginMsg');
+  el.style.display = 'block';
+  el.textContent = msg;
+  el.style.background = type === 'ok' ? '#f0fdf4' : type === 'err' ? '#fef2f2' : '#fffbe6';
+  el.style.borderColor = type === 'ok' ? '#16a34a' : type === 'err' ? '#dc2626' : '#f5c400';
+  el.style.color = type === 'ok' ? '#15803d' : type === 'err' ? '#b91c1c' : '#92600a';
+}
+
+async function doLogin(){
+  if(!supabase) { loginMsg('Supabase nicht geladen','err'); return; }
+  var email = document.getElementById('loginEmail').value.trim();
+  var pw    = document.getElementById('loginPw').value;
+  if(!email || !pw) { loginMsg('Bitte E-Mail und Passwort eingeben','warn'); return; }
+  var btn = document.getElementById('loginBtn');
+  btn.textContent = 'Anmelden…'; btn.disabled = true;
+  var { data, error } = await supabase.auth.signInWithPassword({ email, password: pw });
+  btn.textContent = 'Anmelden'; btn.disabled = false;
+  if(error) { loginMsg(error.message === 'Invalid login credentials' ? 'Ungültige Anmeldedaten' : error.message, 'err'); return; }
+  onLoggedIn(data.user);
+}
+
+async function doReset(){
+  if(!supabase) return;
+  var email = document.getElementById('loginEmail').value.trim();
+  if(!email) { loginMsg('Bitte zuerst E-Mail eingeben','warn'); return; }
+  var { error } = await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: window.location.href
+  });
+  if(error) loginMsg(error.message, 'err');
+  else loginMsg('Reset-Link gesendet — bitte E-Mail prüfen ✓', 'ok');
+}
+
+function showReset(){
+  var s = document.getElementById('resetSection');
+  s.style.display = s.style.display === 'none' ? 'block' : 'none';
+}
+
+function onLoggedIn(user){
+  document.getElementById('topRight').innerHTML =
+    '<span style="font-size:11px;color:var(--muted)">'+user.email+'</span>' +
+    '<button class="btn btn-ghost" onclick="doLogout()" style="font-size:11px">Abmelden</button>' +
+    '<button class="btn btn-ghost" onclick="openSettings()">⚙ API-Key</button>';
+  showView('vDrop');
+}
+
+async function doLogout(){
+  if(supabase) await supabase.auth.signOut();
+  showView('vLogin');
+  document.getElementById('topRight').innerHTML = '<button class="btn btn-ghost" onclick="openSettings()">⚙ API-Key</button>';
+}
+
+// Check session on load
+async function checkAuth(){
+  if(!supabase) { showView('vLogin'); return; }
+  var { data } = await supabase.auth.getSession();
+  if(data.session && data.session.user){
+    onLoggedIn(data.session.user);
+  } else {
+    showView('vLogin');
+  }
+  // Listen for password recovery redirect
+  supabase.auth.onAuthStateChange(function(event, session){
+    if(event === 'PASSWORD_RECOVERY'){
+      showView('vLogin');
+      loginMsg('Bitte neues Passwort setzen (Funktion folgt)', 'warn');
+    }
+  });
+}
+
 document.addEventListener('DOMContentLoaded',function(){
   var logoEl=document.getElementById('logoImg');
   if(logoEl) logoEl.src=MORF_LOGO_B64;
   refreshCostDisplays();
+  checkAuth();
 });
 </script>
 </body>

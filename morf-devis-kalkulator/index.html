@@ -249,7 +249,7 @@ body{font-family:var(--font);font-size:13px;background:var(--bg);color:var(--tex
   <div class="drop-screen">
     <div class="drop-card">
       <div class="eyebrow">LV-Offerte</div>
-      <div style="font-family:var(--mono);font-size:9px;color:var(--dim);margin-bottom:8px">Deploy: 12.04.2026 13:11</div>
+      <div style="font-family:var(--mono);font-size:9px;color:var(--dim);margin-bottom:8px">Deploy: 12.04.2026 13:13</div>
       <h1>Leistungsverzeichnis<br>ausfüllen</h1>
       <div class="drop-zone" id="dropZone"
         ondragover="event.preventDefault();this.classList.add('over')"
@@ -616,22 +616,35 @@ async function runClaudeParser(){
       });
       var lines=Object.values(lineMap).sort(function(a,b){ return b.y-a.y; });
 
-      // If no text found: image-based PDF → run OCR to extract text+coordinates
+      // Render page canvas (needed for display AND for OCR if required)
+      var vp=page.getViewport({scale:RENDER_SCALE});
+      var canvas=document.createElement('canvas');
+      canvas.width=vp.width; canvas.height=vp.height;
+      await page.render({canvasContext:canvas.getContext('2d'),viewport:vp}).promise;
+      pageCanvases[pi]=canvas;
+      var wrap=document.createElement('div'); wrap.className='page-wrap';
+      wrap.style.width=vp.width+'px'; wrap.style.height=vp.height+'px';
+      var overlay=document.createElement('div'); overlay.className='page-overlay';
+      overlay.id='overlay-'+pi;
+      overlay.style.width=vp.width+'px'; overlay.style.height=vp.height+'px';
+      wrap.appendChild(canvas); wrap.appendChild(overlay);
+      document.getElementById('fillPages').appendChild(wrap);
+
+      // If no text found: image-based PDF → run OCR on the rendered canvas
       if(allItems.length===0){
         showToast('Bild-PDF erkannt — OCR läuft…','info');
         try{
           var ocrWorker=await Tesseract.createWorker('deu',1);
-          var ocrResult=await ocrWorker.recognize(canvas.toDataURL());
+          var ocrResult=await ocrWorker.recognize(canvas.toDataURL('image/jpeg',0.92));
           await ocrWorker.terminate();
           ocrResult.data.words.forEach(function(w){
             if(!w.text.trim()||w.confidence<30) return;
-            // Convert canvas pixels → PDF points (y: canvas top=0, PDF bottom=0)
             var item={
-              str:  w.text.trim(),
-              x:    w.bbox.x0/RENDER_SCALE,
-              y:    pageH - w.bbox.y1/RENDER_SCALE,
-              w:    (w.bbox.x1-w.bbox.x0)/RENDER_SCALE,
-              h:    (w.bbox.y1-w.bbox.y0)/RENDER_SCALE
+              str: w.text.trim(),
+              x:   w.bbox.x0/RENDER_SCALE,
+              y:   pageH - w.bbox.y1/RENDER_SCALE,
+              w:   (w.bbox.x1-w.bbox.x0)/RENDER_SCALE,
+              h:   (w.bbox.y1-w.bbox.y0)/RENDER_SCALE
             };
             allItems.push(item);
             var b=Math.round(item.y/3)*3;
@@ -678,19 +691,6 @@ async function runClaudeParser(){
         pdfRows.push({y:line.y,text:txt,ep:dots[0],gp:(!hasSFr&&dots.length>1)?dots[dots.length-1]:null});
       });
       console.log('[PDF.js] Page '+pi+': '+pdfRows.length+' price-rows'+(uebertragRow?' + \u00dcbertrag':''));
-
-      var vp=page.getViewport({scale:RENDER_SCALE});
-      var canvas=document.createElement('canvas');
-      canvas.width=vp.width; canvas.height=vp.height;
-      await page.render({canvasContext:canvas.getContext('2d'),viewport:vp}).promise;
-      pageCanvases[pi]=canvas;
-      var wrap=document.createElement('div'); wrap.className='page-wrap';
-      wrap.style.width=vp.width+'px'; wrap.style.height=vp.height+'px';
-      var overlay=document.createElement('div'); overlay.className='page-overlay';
-      overlay.id='overlay-'+pi;
-      overlay.style.width=vp.width+'px'; overlay.style.height=vp.height+'px';
-      wrap.appendChild(canvas); wrap.appendChild(overlay);
-      document.getElementById('fillPages').appendChild(wrap);
 
       var clRows=await askClaude(canvas,pdfRows);
       trackCost(0.008);

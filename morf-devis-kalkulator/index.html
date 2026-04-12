@@ -317,7 +317,7 @@ body{font-family:var(--font);font-size:13px;background:var(--bg);color:var(--tex
   <div class="drop-screen">
     <div class="drop-card">
       <div class="eyebrow">LV-Offerte</div>
-      <div style="font-family:var(--mono);font-size:9px;color:var(--dim);margin-bottom:8px">Deploy: 12.04.2026 14:46</div>
+      <div style="font-family:var(--mono);font-size:9px;color:var(--dim);margin-bottom:8px">Deploy: 12.04.2026 14:48</div>
       <h1>Leistungsverzeichnis<br>ausfüllen</h1>
       <div class="drop-zone" id="dropZone"
         ondragover="event.preventDefault();this.classList.add('over')"
@@ -1220,7 +1220,11 @@ async function savePdf(){
     var black=PDFLib.rgb(0,0,0);
     var yellow=PDFLib.rgb(0.94,0.75,0);
 
+    var today=new Date();
+    var dateStr=today.getDate().toString().padStart(2,'0')+'.'+(today.getMonth()+1).toString().padStart(2,'0')+'.'+today.getFullYear();
     // Project title at pH2-250 (good height confirmed)
+    var today=new Date();
+    var dateStr=today.getDate().toString().padStart(2,'0')+'.'+(today.getMonth()+1).toString().padStart(2,'0')+'.'+today.getFullYear();
     var projName=pdfProjBez||currentFile.replace('.pdf','').replace('.PDF','');
     if(pdfProjNr) projName=pdfProjNr+' \u2014 '+projName;
     dbPage.drawText(projName,{x:leftX,y:pH2-250,size:16,font:dbFontB,color:black,maxWidth:pW-113});

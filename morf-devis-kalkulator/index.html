@@ -334,7 +334,7 @@ body{font-family:var(--font);font-size:13px;background:var(--bg);color:var(--tex
   <div class="drop-screen">
     <div class="drop-card">
       <div class="eyebrow">LV-Offerte</div>
-      <div style="font-family:var(--mono);font-size:9px;color:var(--dim);margin-bottom:8px">Deploy: 12.04.2026 16:22</div>
+      <div style="font-family:var(--mono);font-size:9px;color:var(--dim);margin-bottom:8px">Deploy: 12.04.2026 16:26</div>
       <h1>Leistungsverzeichnis<br>ausfüllen</h1>
       <div class="drop-zone" id="dropZone"
         ondragover="event.preventDefault();this.classList.add('over')"
@@ -1139,51 +1139,38 @@ async function runClaudeParser(){
       });
       console.log('[PDF.js] Page '+pi+': '+pdfRows.length+' price-rows'+(uebertragRow?' + \u00dcbertrag':''));
 
-      var clRows=await askClaude(canvas,pdfRows);
+      var clRows=await askClaude(canvas,lines,pageH);
       console.log('[Claude] Page '+pi+': '+clRows.length+' rows');
-
       var rowH=Math.round(14*RENDER_SCALE);
-
       clRows.forEach(function(cl,ci){
-        var epBox=cl.ep_box, gpBox=cl.gp_box;
+        var epBox=cl.ep_box,gpBox=cl.gp_box;
         if(!epBox) return;
-        epBox.h=epBox.h||rowH;
-        if(gpBox) gpBox.h=gpBox.h||rowH;
-
         var key=cl.pos||('p'+pi+'_'+ci);
         if(parsedPos[key]) key+='_p'+pi+'_'+ci;
-
-        parsedPos[key]={
-          pos:cl.pos||key, qty:cl.qty||0, unit:cl.unit||'',
-          ep:0, status:cl.isTotal?'kapitelTotal':'price',
-          isKapitelTotal:cl.isTotal||false,
-          pageIdx:pi, canvasW:canvas.width, canvasH:canvas.height,
-          epBox:epBox, gpBox:gpBox
-        };
-
+        parsedPos[key]={pos:cl.pos||key,qty:cl.qty||0,unit:cl.unit||'',
+          ep:0,status:cl.isTotal?'kapitelTotal':'price',isKapitelTotal:cl.isTotal||false,
+          pageIdx:pi,canvasW:canvas.width,canvasH:canvas.height,epBox:epBox,gpBox:gpBox};
         var overlay=document.getElementById('overlay-'+pi);
         if(!overlay) return;
-
-        function mkInput(box,fkey,isGp,isKT){
-          var inp=document.createElement('input');
-          inp.type='text'; inp.id='field-'+fkey+(isGp?'-gp':'');
-          inp.style.cssText='position:absolute;left:'+Math.round(box.x)+'px;top:'+Math.round(box.y)+'px;'+
-            'width:'+Math.round(box.w)+'px;height:'+Math.round(box.h)+'px;'+
-            'font-size:'+Math.round(8.5*RENDER_SCALE/1.5)+'px;font-family:var(--mono);'+
-            'background:'+(isKT?'#e8f4ff':isGp?'#f0f7ee':'#f5f8f0')+';border:none;'+
-            'border-bottom:1.5px solid '+(isKT?'#2266cc':isGp?'#338833':'#2277aa')+';'+
-            'outline:none;text-align:right;padding:0 4px;box-sizing:border-box;border-radius:2px';
-          inp.readOnly=isGp||isKT;
-          inp.tabIndex=isGp||isKT?-1:0;
-          inp.dataset.key=fkey;
-          inp.dataset.isGp=isGp?'1':'0';
+        function mkInp(box,fkey,isGp,isKT){
+          var inp=document.createElement('input'); inp.type='text';
+          inp.id='field-'+fkey+(isGp?'-gp':'');
+          inp.style.position='absolute';
+          inp.style.left=Math.round(box.x)+'px'; inp.style.top=Math.round(box.y)+'px';
+          inp.style.width=Math.round(box.w)+'px'; inp.style.height=Math.round(box.h)+'px';
+          inp.style.fontSize='9px'; inp.style.fontFamily='var(--mono)';
+          inp.style.background=isKT?'#e8f4ff':isGp?'#f0f7ee':'#f5f8f0';
+          inp.style.border='none';
+          inp.style.borderBottom='1.5px solid '+(isKT?'#2266cc':isGp?'#338833':'#2277aa');
+          inp.style.outline='none'; inp.style.textAlign='right';
+          inp.style.padding='0 4px'; inp.style.boxSizing='border-box'; inp.style.borderRadius='2px';
+          inp.readOnly=isGp||isKT; inp.tabIndex=isGp||isKT?-1:0;
+          inp.dataset.key=fkey; inp.dataset.isGp=isGp?'1':'0';
           if(!isGp&&!isKT){
             inp.addEventListener('keydown',function(ev){
-              if(ev.key==='Tab'||ev.key==='Enter'){
-                ev.preventDefault();
+              if(ev.key==='Tab'||ev.key==='Enter'){ev.preventDefault();
                 var all=Array.from(document.querySelectorAll('#fillPages input:not([readonly])'));
-                var nx=all[all.indexOf(inp)+1]; if(nx) nx.focus();
-              }
+                var nx=all[all.indexOf(inp)+1]; if(nx) nx.focus();}
               var k=ev.key.toLowerCase();
               if(k==='k'){ev.preventDefault();inp.value='k. A.';processInput(inp,fkey);}
               if(k==='b'){ev.preventDefault();inp.value='bauseits';processInput(inp,fkey);}
@@ -1198,21 +1185,15 @@ async function runClaudeParser(){
           }
           overlay.appendChild(inp);
         }
-
-        var isKT=cl.isTotal||false;
-        mkInput(epBox,key,false,isKT);
-        if(gpBox) mkInput(gpBox,key,true,false);
+        mkInp(epBox,key,false,cl.isTotal||false);
+        if(gpBox) mkInp(gpBox,key,true,false);
       });
-
-      // Übertrag
-      var uOv=document.getElementById('overlay-'+pi);
-      if(uOv&&pi>0){
+      if(document.getElementById('overlay-'+pi)&&pi>0){
         var uEl=document.createElement('input'); uEl.type='text'; uEl.readOnly=true;
         uEl.id='uebertrag-'+pi;
-        uEl.style.cssText='position:absolute;right:2px;bottom:6px;width:160px;height:18px;'+
-          'font-size:9px;font-family:var(--mono);background:#f0f0f8;border:1px solid #aac;'+
-          'text-align:right;padding:0 4px;font-weight:600';
-        uEl.tabIndex=-1; uEl.title='Übertrag'; uOv.appendChild(uEl);
+        uEl.style.cssText='position:absolute;right:2px;bottom:6px;width:160px;height:18px;font-size:9px;font-family:var(--mono);background:#f0f0f8;border:1px solid #aac;text-align:right;padding:0 4px;font-weight:600';
+        uEl.tabIndex=-1; uEl.title='Übertrag';
+        document.getElementById('overlay-'+pi).appendChild(uEl);
         window._uebertragEls[pi]=uEl;
       }
     }
@@ -1225,41 +1206,37 @@ async function runClaudeParser(){
   }
 }
 
-async function askClaude(canvas, pdfRows){
-  // Hybrid approach:
-  // Claude identifies: which rows need fields + where the price columns are (as % of page width)
-  // PDF.js provides: exact Y coordinates (via pdfRows)
-  // Result: accurate field placement without relying on pixel-perfect Claude coordinates
-
+async function askClaude(canvas, allLines, pageH){
   var APIKEY=localStorage.getItem('morfApiKey')||'';
-  if(!APIKEY){showToast('API-Key fehlt \u2014 \u2699 Einstellungen','err');return [];}
-
+  if(!APIKEY){showToast('API-Key fehlt','err');return [];}
   var b64=canvas.toDataURL('image/jpeg',0.88).split(',')[1];
-  var W=canvas.width, H=canvas.height;
-  var ctx=pdfRows.map(function(r,i){return (i+1)+'. '+r.text.slice(0,70);}).join('\n').slice(0,900);
+  var cW=canvas.width, cH=canvas.height;
 
-  var prompt=
-    'Swiss construction LV page. Identify price columns and rows.\n\n'+
-    'The following rows were found by text extraction (with line numbers):\n'+
-    ctx+'\n\n'+
-    'Your task:\n'+
-    '1. Identify the price columns: at what PERCENTAGE of the image width (0-100) do the EP column and GP column start and end?\n'+
-    '2. For each text row (1, 2, 3...) above: does it need a price value? If yes, provide qty and unit.\n\n'+
-    'Return ONLY valid JSON:\n'+
+  // ALL text lines as numbered context
+  var lineList=allLines.map(function(ln,i){
+    var txt=ln.items.map(function(it){return it.str;}).join(' ').trim().slice(0,80);
+    return (i+1)+'. '+txt;
+  }).join('\n').slice(0,1200);
+
+  var prompt='Swiss construction LV page ('+cW+'x'+cH+' px).\n'+
+    'Find rows needing price input. Look for dotted lines (...) in price columns.\n\n'+
+    'ALL text lines:\n'+lineList+'\n\n'+
+    'IMPORTANT: Start your response with { and nothing else.\n'+
     '{\n'+
-    '  "ep_col": {"x_start_pct": 65, "x_end_pct": 82},\n'+
-    '  "gp_col": {"x_start_pct": 83, "x_end_pct": 99},\n'+
+    '  "ep_col": {"x_start_pct": 64, "x_end_pct": 81},\n'+
+    '  "gp_col": {"x_start_pct": 82, "x_end_pct": 99},\n'+
     '  "has_gp_col": true,\n'+
     '  "rows": [\n'+
-    '    {"line": 1, "pos": "286.311.111", "qty": 200, "unit": "m", "needs_ep": true, "needs_gp": true},\n'+
-    '    {"line": 2, "pos": ".001", "qty": 0, "unit": "gl", "needs_ep": true, "needs_gp": false},\n'+
-    '    {"line": 3, "pos": "Total 300", "qty": 0, "unit": "", "needs_ep": false, "needs_gp": true, "isTotal": true}\n'+
+    '    {"line": 5, "pos": ".141", "qty": 20, "unit": "m", "needs_ep": true, "needs_gp": true},\n'+
+    '    {"line": 8, "pos": "Total 300", "qty": 0, "unit": "", "needs_ep": false, "needs_gp": true, "isTotal": true}\n'+
     '  ]\n'+
     '}\n'+
-    'Notes:\n'+
-    '- needs_gp: false for "per" rows (qty=0) and single-column formats\n'+
-    '- isTotal: true for chapter total rows ("Total 200...", "Total Abschnitt...")\n'+
-    '- Only include rows that actually need price input';
+    'Rules:\n'+
+    '- x_start_pct/x_end_pct: column position as % of image width (where are the dotted lines?)\n'+
+    '- line: 1-based line number from the list above\n'+
+    '- needs_gp: false for per-rows (qty=0) and single-column pages\n'+
+    '- isTotal:true for chapter total rows\n'+
+    '- Only include rows with visible dotted lines or blank price fields';
 
   try{
     var resp=await fetch('https://api.anthropic.com/v1/messages',{
@@ -1276,62 +1253,40 @@ async function askClaude(canvas, pdfRows){
     trackCost(0.012);
     var data=await resp.json();
     var txt=(data.content&&data.content[0]&&data.content[0].text)||'{}';
-    var clean=txt.replace(/```json|```/g,'').trim();
-    var result=JSON.parse(clean);
+    // Robust: extract JSON even if Claude adds preamble
+    var j0=txt.indexOf('{'), j1=txt.lastIndexOf('}')+1;
+    if(j0<0){console.warn('[Claude] No JSON:',txt.slice(0,80));return [];}
+    var result=JSON.parse(txt.slice(j0,j1));
 
-    // Convert percentage columns + PDF.js Y coordinates to pixel boxes
-    var output=[];
-    var cW=canvas.width, cH=canvas.height;
     var ep=result.ep_col||{x_start_pct:64,x_end_pct:81};
     var gp=result.gp_col||{x_start_pct:82,x_end_pct:99};
     var hasGP=result.has_gp_col!==false;
+    var rowH=Math.round(14*RENDER_SCALE);
+    var output=[];
 
     (result.rows||[]).forEach(function(r){
       if(!r.needs_ep&&!r.needs_gp) return;
-      // Get Y from pdfRows by line number (1-based)
-      var lineIdx=(r.line||1)-1;
-      var pdfRow=pdfRows[lineIdx];
-      if(!pdfRow) return;
-
-      // Canvas Y from PDF.js row (convert PDF y → canvas y)
-      // pdfRow.y is PDF-coordinate (bottom=0), canvas y is top=0
-      // The row.ep.y (or row.y) gives the approximate canvas position
-      var canvasY;
-      if(pdfRow.ep) canvasY=Math.round((1-(pdfRow.y/pageH))*cH);
-      else canvasY=Math.round((1-(pdfRow.y/pageH))*cH);
-
-      var rowH2=Math.round(15*RENDER_SCALE);
-      var epBox=null, gpBox=null;
-
-      if(r.needs_ep||r.isTotal&&!r.needs_ep){
-        var colToUse=r.isTotal?gp:ep;
-        epBox={
-          x:Math.round(cW*colToUse.x_start_pct/100),
-          y:canvasY-rowH2,
-          w:Math.round(cW*(colToUse.x_end_pct-colToUse.x_start_pct)/100),
-          h:rowH2
-        };
+      var ln=allLines[(r.line||1)-1]; if(!ln) return;
+      var canvasY=Math.round((1-ln.y/pageH)*cH);
+      var epBox=null,gpBox=null;
+      if(r.needs_ep){
+        epBox={x:Math.round(cW*ep.x_start_pct/100),y:canvasY-rowH+2,
+               w:Math.round(cW*(ep.x_end_pct-ep.x_start_pct)/100),h:rowH};
+      }
+      if(r.isTotal){
+        epBox={x:Math.round(cW*gp.x_start_pct/100),y:canvasY-rowH+2,
+               w:Math.round(cW*(gp.x_end_pct-gp.x_start_pct)/100),h:rowH};
       }
       if(hasGP&&r.needs_gp&&!r.isTotal){
-        gpBox={
-          x:Math.round(cW*gp.x_start_pct/100),
-          y:canvasY-rowH2,
-          w:Math.round(cW*(gp.x_end_pct-gp.x_start_pct)/100),
-          h:rowH2
-        };
+        gpBox={x:Math.round(cW*gp.x_start_pct/100),y:canvasY-rowH+2,
+               w:Math.round(cW*(gp.x_end_pct-gp.x_start_pct)/100),h:rowH};
       }
-
-      output.push({
-        pos:r.pos||('p_'+lineIdx),
-        qty:r.qty||0,
-        unit:r.unit||'',
-        ep_box:epBox,
-        gp_box:gpBox,
-        isTotal:r.isTotal||false
-      });
+      if(!epBox) return;
+      output.push({pos:r.pos||'p_'+(r.line||0),qty:r.qty||0,unit:r.unit||'',
+        ep_box:epBox,gp_box:gpBox,isTotal:r.isTotal||false});
     });
 
-    console.log('[Claude] '+output.length+' rows | EP col: '+ep.x_start_pct+'%-'+ep.x_end_pct+'%'+(hasGP?' | GP col: '+gp.x_start_pct+'%-'+gp.x_end_pct+'%':''));
+    console.log('[Claude] '+output.length+' rows | EP:'+ep.x_start_pct+'%-'+ep.x_end_pct+'%'+(hasGP?' GP:'+gp.x_start_pct+'%-'+gp.x_end_pct+'%':''));
     return output;
   }catch(e){
     console.error('[Claude]',e);

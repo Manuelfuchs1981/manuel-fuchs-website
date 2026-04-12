@@ -222,6 +222,11 @@ body{font-family:var(--font);font-size:13px;background:var(--bg);color:var(--tex
 .cond-item-del{margin-left:auto;background:none;border:none;cursor:pointer;
   color:var(--dim);font-size:13px;padding:0 2px;opacity:.5;flex-shrink:0}
 .cond-item-del:hover{color:var(--red);opacity:1}
+.cond-item-edit{background:none;border:none;cursor:pointer;color:var(--dim);
+  font-size:11px;padding:0 3px;opacity:.4;flex-shrink:0}
+.cond-item-edit:hover{color:var(--yellow);opacity:1}
+.cond-edit-form{background:#fff8cc;border:1px solid var(--yellow);border-radius:7px;
+  padding:10px;margin:4px 0 8px 0}
 .cond-global-badge{font-size:8px;background:#e8e8e4;color:var(--muted);
   border-radius:3px;padding:1px 4px;margin-left:4px;font-weight:600;letter-spacing:.5px}
 
@@ -317,7 +322,7 @@ body{font-family:var(--font);font-size:13px;background:var(--bg);color:var(--tex
   <div class="drop-screen">
     <div class="drop-card">
       <div class="eyebrow">LV-Offerte</div>
-      <div style="font-family:var(--mono);font-size:9px;color:var(--dim);margin-bottom:8px">Deploy: 12.04.2026 15:06</div>
+      <div style="font-family:var(--mono);font-size:9px;color:var(--dim);margin-bottom:8px">Deploy: 12.04.2026 15:09</div>
       <h1>Leistungsverzeichnis<br>ausfüllen</h1>
       <div class="drop-zone" id="dropZone"
         ondragover="event.preventDefault();this.classList.add('over')"
@@ -663,16 +668,41 @@ function buildCondPanel(){
       });
       var lbl=document.createElement('label'); lbl.htmlFor=uid; lbl.textContent=titleStr; lbl.title=textStr;
       item.appendChild(cb); item.appendChild(lbl);
-      // Delete button for all conditions
+      // Edit + Delete buttons
       if(entry.id){
-        var del=document.createElement('button'); del.className='cond-item-del'; del.textContent='×';
-        del.title='Löschen';
-        del.onclick=(function(id,txt){ return function(){
+        var editBtn=document.createElement('button'); editBtn.className='cond-item-edit';
+        editBtn.innerHTML='&#9998;'; editBtn.title='Bearbeiten';
+        var delBtn=document.createElement('button'); delBtn.className='cond-item-del';
+        delBtn.textContent='×'; delBtn.title='Löschen';
+        item.appendChild(editBtn); item.appendChild(delBtn);
+
+        var editId='ef_'+String(entry.id).slice(0,8);
+        var editForm=document.createElement('div'); editForm.className='cond-edit-form';
+        editForm.style.display='none';
+        editForm.innerHTML=
+          '<input class="cond-field" id="'+editId+'_t" value="'+entry.titel.replace(/"/g,'&quot;').replace(/</g,'&lt;')+'" placeholder="Titel">'+
+          '<textarea class="cond-field" id="'+editId+'_x" rows="3" style="resize:vertical">'+entry.text.replace(/</g,'&lt;')+'</textarea>'+
+          '<div style="display:flex;gap:6px">'+
+          '<button onclick="(function(){var t=document.getElementById(''+editId+'_t').value.trim();'+
+            'var x=document.getElementById(''+editId+'_x').value.trim();'+
+            'if(t&&x)updateBedingung(''+entry.id+'',t,x);})()" '+
+            'style="flex:1;padding:6px;background:var(--text);color:#fff;border:none;border-radius:5px;'+
+            'font-family:var(--font);font-size:11px;font-weight:600;cursor:pointer">✓ Speichern</button>'+
+          '<button onclick="this.closest('.cond-edit-form').style.display='none'" '+
+            'style="padding:6px 10px;background:none;border:1.5px solid var(--border2);border-radius:5px;'+
+            'font-family:var(--font);font-size:11px;cursor:pointer">Abbrechen</button>'+
+          '</div>';
+
+        editBtn.onclick=(function(ef){ return function(){ ef.style.display=ef.style.display==='none'?'block':'none'; }; })(editForm);
+        delBtn.onclick=(function(id,txt){ return function(){
           if(!confirm('Bedingung löschen?')) return;
           activeConds=activeConds.filter(function(a){return a.text!==txt;});
           deleteBedingung(id);
-        };})(entry.id, textStr);
-        item.appendChild(del);
+        };})(entry.id,textStr);
+
+        items.appendChild(item);
+        items.appendChild(editForm);
+        return;
       }
       items.appendChild(item);
     });
@@ -768,6 +798,16 @@ async function deleteBedingung(id){
   showToast('Gelöscht', 'ok');
   dbBedingungen = dbBedingungen.filter(function(b){ return b.id !== id; });
   buildCondPanel();
+}
+
+async function updateBedingung(id, titel, text){
+  if(!supabase) return;
+  var { error } = await supabase.from('bedingungen')
+    .update({ titel, text })
+    .eq('id', id);
+  if(error){ showToast('Fehler: ' + error.message, 'err'); return; }
+  showToast('Gespeichert ✓', 'ok');
+  await loadBedingungen();
 }
 
 function toggleCond(){

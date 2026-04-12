@@ -248,7 +248,7 @@ body{font-family:var(--font);font-size:13px;background:var(--bg);color:var(--tex
   <div class="drop-screen">
     <div class="drop-card">
       <div class="eyebrow">LV-Offerte</div>
-      <div style="font-family:var(--mono);font-size:9px;color:var(--dim);margin-bottom:8px">Deploy: 12.04.2026 10:59</div>
+      <div style="font-family:var(--mono);font-size:9px;color:var(--dim);margin-bottom:8px">Deploy: 12.04.2026 11:07</div>
       <h1>Leistungsverzeichnis<br>ausfüllen</h1>
       <div class="drop-zone" id="dropZone"
         ondragover="event.preventDefault();this.classList.add('over')"
@@ -630,10 +630,11 @@ async function runClaudeParser(){
             return /^(SFr\.?|Fr\.?|CHF)$/i.test(it.str.trim())&&it.x>=dotThresholdX;
           });
           if(priceLabel.length){
-            // Treat SFr. label as a field marker: field starts at label x, width to right margin
+            // Field starts AFTER "SFr." text, extends to right margin
             priceLabel.forEach(function(lbl){
-              var fieldW=Math.max(pageW*0.20, pageW-lbl.x-5);
-              dots.push({x:lbl.x, y:lbl.y, w:fieldW, str:lbl.str, isSFr:true});
+              var fieldX=lbl.x+(lbl.w||20)+3; // start after "SFr." text
+              var fieldW=Math.max(pageW*0.15, pageW-fieldX-5);
+              dots.push({x:fieldX, y:lbl.y, w:fieldW, str:lbl.str, isSFr:true});
             });
           }
         }
@@ -765,15 +766,34 @@ async function askClaude(canvas,pdfRows){
   var b64=canvas.toDataURL('image/jpeg',0.88).split(',')[1];
   var prompt;
   if(pdfRows.length>0){
-    var rowList=pdfRows.map(function(r,i){ return (i+1)+'. context: "'+r.text.slice(0,50)+'"'; }).join('\n');
-    prompt='Swiss NPK price list. PDF found '+pdfRows.length+' price row(s) by dotted lines, top to bottom:\n'
-      +rowList+'\n\nFor each row (same order) return pos/qty/unit.\n'
-      +'JSON only with exactly '+pdfRows.length+' entries:\n'
-      +'[{"pos":"181>083","qty":4,"unit":"St"},...]';
+    // PDF.js already found the price rows — Claude only needs to read pos/qty/unit from each
+    var rowList=pdfRows.map(function(r,i){
+      return (i+1)+'. "'+r.text.slice(0,60)+'"'+(r.ep&&r.ep.isSFr?' [SFr.-format: EP only, no GP]':'');
+    }).join('\n');
+    prompt='This is a Swiss NPK construction price list.\n\n'
+      +'The following '+pdfRows.length+' price row(s) were detected top-to-bottom (by dotted lines or SFr. markers):\n'
+      +rowList+'\n\n'
+      +'For each row, in the same order, return:\n'
+      +'- pos: position number as printed (e.g. "181>083", "30,00", "R .101")\n'
+      +'- qty: quantity on that row as decimal; 0 if it says "per" or has no quantity\n'
+      +'- unit: unit on that row (St, m, m2, LE, gl, kg, h, pauschal)\n\n'
+      +'Return ONLY a JSON array with exactly '+pdfRows.length+' entries:\n'
+      +'[{"pos":"181>083","qty":4,"unit":"St"},{"pos":"181>084","qty":0,"unit":"m"},...]';
   } else {
-    prompt='Swiss NPK price list. No dotted lines found.\n'
-      +'List all price rows. JSON:\n'
-      +'[{"pos":"222.100","qty":30,"unit":"m","marker":"30.00 m","approx_y":0.4,"has_gp":true},...]';
+    // No structural markers found — Claude must locate and identify price rows visually
+    prompt='This is a Swiss NPK construction price list. No dotted lines or price markers were detected automatically.\n\n'
+      +'Find every row where a unit price must be entered. These rows have:\n'
+      +'- A quantity number and unit (e.g. "168 m¹", "33 Stk.", "per LE")\n'
+      +'- A price column label like "SFr.", "Fr.", "CHF", or a blank/dotted field\n\n'
+      +'For each price row return:\n'
+      +'- pos: position number (e.g. "31,00", "32,00a")\n'
+      +'- qty: quantity as decimal; 0 if "per" or open quantity\n'
+      +'- unit: unit (St, Stk, m, m2, LE, gl, kg, h, pauschal)\n'
+      +'- approx_y: vertical center of the row as fraction of image height (0=top, 1=bottom)\n'
+      +'- has_gp: true if a separate GP/total column exists, false if only one price column\n\n'
+      +'Skip: headers, totals, "Total ...", "Übertrag", section titles.\n\n'
+      +'Return ONLY a JSON array:\n'
+      +'[{"pos":"31,00","qty":168,"unit":"m","approx_y":0.32,"has_gp":false},...]';
   }
   var resp=await fetch('https://api.anthropic.com/v1/messages',{
     method:'POST',

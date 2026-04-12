@@ -334,7 +334,7 @@ body{font-family:var(--font);font-size:13px;background:var(--bg);color:var(--tex
   <div class="drop-screen">
     <div class="drop-card">
       <div class="eyebrow">LV-Offerte</div>
-      <div style="font-family:var(--mono);font-size:9px;color:var(--dim);margin-bottom:8px">Deploy: 12.04.2026 15:55</div>
+      <div style="font-family:var(--mono);font-size:9px;color:var(--dim);margin-bottom:8px">Deploy: 12.04.2026 15:57</div>
       <h1>Leistungsverzeichnis<br>ausfüllen</h1>
       <div class="drop-zone" id="dropZone"
         ondragover="event.preventDefault();this.classList.add('over')"
@@ -805,8 +805,7 @@ function getActiveConds(){
   // activeConds is authoritative. Sync manual preview edits back first.
   var preview=document.getElementById('condPreview');
   if(preview && preview.innerText.trim() && activeConds.length>0){
-    var lines=preview.innerText.split(/
-/).map(function(l){
+    var lines=preview.innerText.split(/\n/).map(function(l){
       return l.replace(/^[•\-\s]+/,'').trim();
     }).filter(function(l){return l.length>0;});
     if(lines.length===activeConds.length){

@@ -248,7 +248,7 @@ body{font-family:var(--font);font-size:13px;background:var(--bg);color:var(--tex
   <div class="drop-screen">
     <div class="drop-card">
       <div class="eyebrow">LV-Offerte</div>
-      <div style="font-family:var(--mono);font-size:9px;color:var(--dim);margin-bottom:8px">Deploy: 12.04.2026 12:55</div>
+      <div style="font-family:var(--mono);font-size:9px;color:var(--dim);margin-bottom:8px">Deploy: 12.04.2026 12:59</div>
       <h1>Leistungsverzeichnis<br>ausfüllen</h1>
       <div class="drop-zone" id="dropZone"
         ondragover="event.preventDefault();this.classList.add('over')"
@@ -670,37 +670,39 @@ async function runClaudeParser(){
       var rowH=Math.round(13*S);
 
       if(pdfRows.length===0){
-        // No dots: use Claude's line_id to find exact Y from PDF.js text,
-        // then place field right of rightmost text item on that line
+        // No dots: match by qty+unit from PDF.js lines
+        // Claude gives qty+unit per row; we find the line in PDF.js that contains
+        // both the qty number AND the unit text, then place field right of last item
         var usedLineYs=[];
+
         clRows.forEach(function(cl){
+          var qty=cl.qty||0;
+          var unit=(cl.unit||'').toLowerCase().replace(/stk\.?/,'st');
           var lineId=(cl.line_id||'').trim();
-          var matchLine=null, bestScore=0;
-          if(lineId){
-            lines.forEach(function(line){
-              if(usedLineYs.some(function(y){ return Math.abs(y-line.y)<3; })) return;
-              var lt=line.items.map(function(it){ return it.str; }).join(' ');
-              if(lt.indexOf(lineId)>=0){
-                var score=lineId.length/Math.max(1,lt.length);
-                if(score>bestScore){ bestScore=score; matchLine=line; }
-              }
-            });
-            if(!matchLine){
-              var words=lineId.split(/\s+/).filter(function(w){ return w.length>1; });
-              lines.forEach(function(line){
-                if(usedLineYs.some(function(y){ return Math.abs(y-line.y)<3; })) return;
-                var lt=line.items.map(function(it){ return it.str; }).join(' ');
-                var hits=words.filter(function(w){ return lt.indexOf(w)>=0; }).length;
-                if(hits===words.length&&hits>0){
-                  var score=hits/Math.max(1,lt.split(/\s+/).length);
-                  if(score>bestScore){ bestScore=score; matchLine=line; }
-                }
-              });
-            }
-          }
-          if(!matchLine) return;
+          var matchLine=null;
+          var bestScore=0;
+
+          lines.forEach(function(line){
+            if(usedLineYs.some(function(y){ return Math.abs(y-line.y)<4; })) return;
+            var lt=line.items.map(function(it){ return it.str; }).join(' ');
+            var ltL=lt.toLowerCase();
+
+            var score=0;
+            // Match: qty number present on line
+            if(qty>0 && lt.indexOf(String(qty))>=0) score+=2;
+            if(qty===0 && /per/i.test(lt)) score+=2;
+            // Match: unit present on line
+            if(unit && ltL.indexOf(unit)>=0) score+=1;
+            // Match: line_id text (partial)
+            if(lineId && lt.indexOf(lineId)>=0) score+=3;
+            // Must have some match
+            if(score>=2 && score>bestScore){ bestScore=score; matchLine=line; }
+          });
+
+          if(!matchLine) return; // no match found
           usedLineYs.push(matchLine.y);
-          var exactY=matchLine.y;
+
+          // Field: right of the rightmost item on this line that is past 40% page width
           var rightItems=matchLine.items.filter(function(it){ return it.x>=pageW*0.4; });
           if(!rightItems.length) rightItems=matchLine.items;
           var rightmost=rightItems.reduce(function(best,it){
@@ -708,15 +710,24 @@ async function runClaudeParser(){
           });
           var fieldX=rightmost.x+(rightmost.w||0)+5;
           var fieldW=pageW-fieldX-5;
-          if(fieldW<30){ fieldX=pageW*0.62; fieldW=pageW*0.33; }
-          var canvasY=Math.round((pageH-exactY)*S)-rowH+2;
-          var epBox={x:Math.round(fieldX*S),y:canvasY,w:Math.round(Math.min(fieldW,pageW-fieldX-2)*S),h:rowH};
-          var key=cl.pos||('p'+pi+'_'+Math.round(exactY));
-          if(parsedPos[key]) key+='_b';
-          parsedPos[key]={pos:cl.pos||key,qty:cl.qty||0,unit:cl.unit||'',
-            ep:0,status:'price',pageIdx:pi,canvasW:canvas.width,canvasH:canvas.height,epBox:epBox,gpBox:null};
-          placeField(key,overlay,parsedPos[key]);
-        });
+          if(fieldW<25){ fieldX=pageW*0.65; fieldW=pageW*0.30; }
+
+          var canvasY=Math.round((pageH-matchLine.y)*S)-rowH+2;
+          var epBox={
+            x: Math.round(fieldX*S),
+            y: canvasY,
+            w: Math.round(Math.min(fieldW, pageW-fieldX-2)*S),
+            h: rowH
+          };
+          var key=cl.pos||('p'+pi+'_'+Math.round(matchLine.y));
+          if(parsedPos[key]) key+='_'+Math.round(matchLine.y);
+          parsedPos[key]={pos:cl.pos||key, qty:cl.qty||0, unit:cl.unit||'',
+            ep:0, status:'price', pageIdx:pi, canvasW:canvas.width, canvasH:canvas.height,
+            epBox:epBox, gpBox:null};
+          placeField(key, overlay, parsedPos[key]);
+          console.log('[Match]', cl.pos, 'qty='+qty, 'unit='+unit,
+            'y='+matchLine.y.toFixed(1), 'fieldX='+fieldX.toFixed(1));
+        })
       } else {
         for(var idx=0;idx<pdfRows.length;idx++){
           var row=pdfRows[idx];

@@ -7,6 +7,7 @@
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+<script src="https://unpkg.com/tesseract.js@5/dist/tesseract.min.js"></script>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
@@ -248,7 +249,7 @@ body{font-family:var(--font);font-size:13px;background:var(--bg);color:var(--tex
   <div class="drop-screen">
     <div class="drop-card">
       <div class="eyebrow">LV-Offerte</div>
-      <div style="font-family:var(--mono);font-size:9px;color:var(--dim);margin-bottom:8px">Deploy: 12.04.2026 13:01</div>
+      <div style="font-family:var(--mono);font-size:9px;color:var(--dim);margin-bottom:8px">Deploy: 12.04.2026 13:09</div>
       <h1>Leistungsverzeichnis<br>ausfüllen</h1>
       <div class="drop-zone" id="dropZone"
         ondragover="event.preventDefault();this.classList.add('over')"
@@ -615,6 +616,35 @@ async function runClaudeParser(){
       });
       var lines=Object.values(lineMap).sort(function(a,b){ return b.y-a.y; });
 
+      // If no text found: image-based PDF → run OCR to extract text+coordinates
+      if(allItems.length===0){
+        showToast('Bild-PDF erkannt — OCR läuft…','info');
+        try{
+          var ocrWorker=await Tesseract.createWorker('deu',1);
+          var ocrResult=await ocrWorker.recognize(canvas);
+          await ocrWorker.terminate();
+          ocrResult.data.words.forEach(function(w){
+            if(!w.text.trim()||w.confidence<30) return;
+            // Convert canvas pixels → PDF points (y: canvas top=0, PDF bottom=0)
+            var item={
+              str:  w.text.trim(),
+              x:    w.bbox.x0/RENDER_SCALE,
+              y:    pageH - w.bbox.y1/RENDER_SCALE,
+              w:    (w.bbox.x1-w.bbox.x0)/RENDER_SCALE,
+              h:    (w.bbox.y1-w.bbox.y0)/RENDER_SCALE
+            };
+            allItems.push(item);
+            var b=Math.round(item.y/3)*3;
+            if(!lineMap[b]) lineMap[b]={y:item.y,items:[]};
+            lineMap[b].items.push(item);
+          });
+          lines=Object.values(lineMap).sort(function(a,b){ return b.y-a.y; });
+          console.log('[OCR] '+ocrResult.data.words.length+' words → '+lines.length+' lines');
+        }catch(ocrErr){
+          console.error('[OCR] Failed:',ocrErr);
+        }
+      }
+
       // Detect price rows: dots right of 55%, or SFr./Fr./CHF items right of 55%
       var dotThresholdX=pageW*0.55;
       var uebertragRow=null;
@@ -674,12 +704,6 @@ async function runClaudeParser(){
         // Claude gives qty+unit per row; we find the line in PDF.js that contains
         // both the qty number AND the unit text, then place field right of last item
         var usedLineYs=[];
-
-        // DEBUG: show what lines PDF.js found
-        console.log('[DEBUG] lines count:', lines.length);
-        lines.slice(0,5).forEach(function(l,i){
-          console.log('[DEBUG] line '+i+': y='+l.y.toFixed(1)+' text="'+l.items.map(function(it){return it.str;}).join(' ').slice(0,60)+'"');
-        });
 
         clRows.forEach(function(cl){
           var qty=cl.qty||0;

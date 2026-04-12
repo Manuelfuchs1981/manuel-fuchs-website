@@ -248,7 +248,7 @@ body{font-family:var(--font);font-size:13px;background:var(--bg);color:var(--tex
   <div class="drop-screen">
     <div class="drop-card">
       <div class="eyebrow">LV-Offerte</div>
-      <div style="font-family:var(--mono);font-size:9px;color:var(--dim);margin-bottom:8px">Deploy: 12.04.2026 10:55</div>
+      <div style="font-family:var(--mono);font-size:9px;color:var(--dim);margin-bottom:8px">Deploy: 12.04.2026 10:59</div>
       <h1>Leistungsverzeichnis<br>ausfüllen</h1>
       <div class="drop-zone" id="dropZone"
         ondragover="event.preventDefault();this.classList.add('over')"
@@ -616,23 +616,45 @@ async function runClaudeParser(){
       });
       var lines=Object.values(lineMap).sort(function(a,b){ return b.y-a.y; });
 
-      // Find price rows: dot items right of 55% page width
+      // Find price rows: dot items OR "SFr."/"Fr."/"CHF" labels right of 55% page width
       var dotThresholdX=pageW*0.55;
       var uebertragRow=null;
       var pdfRows=[];
       lines.forEach(function(line){
+        // Standard: dot items (.......)
         var dots=line.items.filter(function(it){ return /\.{4,}/.test(it.str)&&it.x>=dotThresholdX; });
+
+        // Alternative: SFr. / Fr. / CHF price label (formats without dotted lines)
+        if(!dots.length){
+          var priceLabel=line.items.filter(function(it){
+            return /^(SFr\.?|Fr\.?|CHF)$/i.test(it.str.trim())&&it.x>=dotThresholdX;
+          });
+          if(priceLabel.length){
+            // Treat SFr. label as a field marker: field starts at label x, width to right margin
+            priceLabel.forEach(function(lbl){
+              var fieldW=Math.max(pageW*0.20, pageW-lbl.x-5);
+              dots.push({x:lbl.x, y:lbl.y, w:fieldW, str:lbl.str, isSFr:true});
+            });
+          }
+        }
+
         if(!dots.length) return;
         dots.sort(function(a,b){ return a.x-b.x; });
-        var nonDots=line.items.filter(function(it){ return !/\.{4,}/.test(it.str); });
+        var nonDots=line.items.filter(function(it){ return !/\.{4,}/.test(it.str)&&!/^(SFr\.?|Fr\.?|CHF)$/i.test(it.str.trim()); });
         var txt=nonDots.map(function(it){ return it.str; }).join(' ').trim();
         if(/\u00fcbertrag|zwischentotal|total\s*$/i.test(txt)){
           uebertragRow={y:line.y,ep:dots[0],gp:dots.length>1?dots[dots.length-1]:null};
           return;
         }
-        pdfRows.push({y:line.y,text:txt,ep:dots[0],gp:dots.length>1?dots[dots.length-1]:null});
+        // For SFr. format: only 1 field (EP), no GP
+        var hasSFr=dots.some(function(d){ return d.isSFr; });
+        pdfRows.push({
+          y:line.y, text:txt,
+          ep:dots[0],
+          gp:(!hasSFr&&dots.length>1)?dots[dots.length-1]:null
+        });
       });
-      console.log('[PDF.js] Page '+pi+': '+pdfRows.length+' dot-rows'+(uebertragRow?' + Übertrag':''));
+      console.log('[PDF.js] Page '+pi+': '+pdfRows.length+' price-rows'+(uebertragRow?' + Übertrag':''));
 
       // Render page
       var vp=page.getViewport({scale:RENDER_SCALE});

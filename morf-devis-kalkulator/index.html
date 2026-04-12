@@ -334,7 +334,7 @@ body{font-family:var(--font);font-size:13px;background:var(--bg);color:var(--tex
   <div class="drop-screen">
     <div class="drop-card">
       <div class="eyebrow">LV-Offerte</div>
-      <div style="font-family:var(--mono);font-size:9px;color:var(--dim);margin-bottom:8px">Deploy: 12.04.2026 15:57</div>
+      <div style="font-family:var(--mono);font-size:9px;color:var(--dim);margin-bottom:8px">Deploy: 12.04.2026 16:11</div>
       <h1>Leistungsverzeichnis<br>ausfüllen</h1>
       <div class="drop-zone" id="dropZone"
         ondragover="event.preventDefault();this.classList.add('over')"
@@ -455,6 +455,7 @@ var PROJ_FILIALE = {
   '181': {code:'FZS', name:'Filiale Zentralschweiz',   ort:'Cham'},
   '191': {code:'DAV', name:'DAV-Zürich',                 ort:'Zürich'},
 };
+var MORF_FIRMA={name:'Karl Morf AG',addr1:'Aspstrasse 6',addr2:'8154 Oberglatt',tel:'+41 44 852 30 00',email:'info@morf-ag.ch'};
 function cw(str,sz){var W=0;for(var i=0;i<str.length;i++){var ch=str.charCodeAt(i);if(ch===39||ch===8217||ch===46||ch===44)W+=0.278;else if(ch===32)W+=0.278;else W+=0.556;}return W*sz;}
 var COND_CATS = {
   'Parkplätze': [
@@ -1102,7 +1103,19 @@ async function runClaudeParser(){
       var uebertragRow=null;
       var pdfRows=[];
       lines.forEach(function(line){
-        var dots=line.items.filter(function(it){ return /\.{4,}/.test(it.str)&&it.x>=dotThresholdX; });
+        // Split multi-group dot items: BauPlus has "......  ......" as one PDF.js item
+        var rawDots=line.items.filter(function(it){ return /\.{4,}/.test(it.str)&&it.x>=dotThresholdX; });
+        var dots=[];
+        rawDots.forEach(function(it){
+          var groups=it.str.split(/\s+/).filter(function(p){return /\.{4,}/.test(p);});
+          if(groups.length<=1){ dots.push(it); return; }
+          var cw2=(it.w||60)/Math.max(it.str.length,1);
+          var cx=it.x;
+          groups.forEach(function(grp){
+            var gi=it.str.indexOf(grp);
+            dots.push({str:grp,x:it.x+gi*cw2,y:it.y,w:grp.length*cw2,h:it.h||8});
+          });
+        });
         if(!dots.length){
           var priceLabel=line.items.filter(function(it){
             return /SFr\.?|Fr\.|CHF/i.test(it.str)&&it.x>=dotThresholdX;
@@ -1133,7 +1146,10 @@ async function runClaudeParser(){
           uebertragRow={y:line.y,ep:dots[0],gp:dots.length>1?dots[dots.length-1]:null};
           return;
         }
-        if(/\btotal\b/i.test(txt)) return;
+        if(/\btotal\b/i.test(txt)){
+          if(dots.length>0) pdfRows.push({y:line.y,text:txt,ep:dots[dots.length-1],gp:null,isKapitelTotal:true});
+          return;
+        }
         pdfRows.push({y:line.y,text:txt,ep:dots[0],gp:dots.length>1?dots[dots.length-1]:null});
       });
       console.log('[PDF.js] Page '+pi+': '+pdfRows.length+' price-rows'+(uebertragRow?' + \u00dcbertrag':''));
@@ -1226,7 +1242,9 @@ async function runClaudeParser(){
           var key=cl.pos||('p'+pi+'_'+idx);
           if(parsedPos[key]) key+='_p'+pi;
           parsedPos[key]={pos:cl.pos||key,qty:cl.qty||0,unit:cl.unit||'',
-            ep:0,status:'price',pageIdx:pi,canvasW:canvas.width,canvasH:canvas.height,epBox:epBox,gpBox:gpBox};
+            ep:0,status:row.isKapitelTotal?'kapitelTotal':'price',
+            isKapitelTotal:row.isKapitelTotal||false,
+            pageIdx:pi,canvasW:canvas.width,canvasH:canvas.height,epBox:epBox,gpBox:gpBox};
           placeField(key,overlay,parsedPos[key]);
         }
       }
@@ -1397,6 +1415,60 @@ function fmtN(n){
   return parts[0]+'.'+parts[1];
 }
 
+
+// ── COVER PAGE AUTO-FILL (Option A) ───────────────────────────
+async function detectCoverFields(canvas){
+  try{
+    var b64=canvas.toDataURL('image/jpeg',0.85).split(',')[1];
+    var resp=await fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:300,
+        messages:[{role:'user',content:[
+          {type:'image',source:{type:'base64',media_type:'image/jpeg',data:b64}},
+          {type:'text',text:'Swiss LV cover page. Find pixel [x,y] of these fillable areas (dotted lines or blank fields). Return ONLY valid JSON:\n{"unternehmer":[x,y],"addr1":[x,y],"tel":[x,y],"sachbearbeiter":[x,y],"brutto":[x,y],"mwst_chf":[x,y],"total":[x,y]}\nFor monetary fields: right-aligned end of the dotted line in the first price column (Eingabe).'}
+        ]}]})
+    });
+    var data=await resp.json();
+    var txt=data.content&&data.content[0]&&data.content[0].text;
+    if(!txt) return null;
+    return JSON.parse(txt.replace(/```json|```/g,'').trim());
+  }catch(e){console.warn('[CoverPage]',e);return null;}
+}
+
+async function fillCoverPage(mainDoc,font,fontB,brutto,mwst,netto){
+  var canvas=pageCanvases[0];
+  if(!canvas) return;
+  showProgress('Titelseite ausfüllen\u2026','Claude erkennt Felder',90);
+  var fields=await detectCoverFields(canvas);
+  if(!fields){console.log('[CoverPage] Felder nicht erkannt');return;}
+  var page=mainDoc.getPages()[0];
+  var pH=page.getHeight();
+  var blue=PDFLib.rgb(0,0,0.8); var sz=8;
+  var S=RENDER_SCALE;
+  function fCH2(n){return n.toLocaleString('de-CH',{minimumFractionDigits:2,maximumFractionDigits:2});}
+  function place(key,text){
+    if(!fields[key]) return;
+    var pdfX=fields[key][0]/S;
+    var pdfY=pH-(fields[key][1]/S)+2;
+    page.drawText(String(text),{x:pdfX,y:pdfY,size:sz,font:font,color:blue});
+  }
+  var sachb='';
+  try{
+    var {data:{user}}=await supabase.auth.getUser();
+    if(user){var ps=user.email.split('@')[0].split(/[._-]/);sachb=ps.map(function(p){return p.charAt(0).toUpperCase()+p.slice(1);}).join(' ');}
+  }catch(e){}
+  place('unternehmer',MORF_FIRMA.name);
+  place('addr1',MORF_FIRMA.addr1+', '+MORF_FIRMA.addr2);
+  place('tel',MORF_FIRMA.tel);
+  if(sachb) place('sachbearbeiter',sachb);
+  if(brutto>0){
+    place('brutto',fCH2(brutto));
+    place('mwst_chf',fCH2(mwst));
+    place('total',fCH2(netto));
+  }
+  console.log('[CoverPage] OK');
+}
+
 async function savePdf(){
   if(!sourcePdfUrl||typeof PDFLib==='undefined'){showToast('PDF nicht bereit','err');return;}
   showToast('PDF wird erstellt…','info');
@@ -1436,6 +1508,10 @@ async function savePdf(){
           page.drawText(gpStr,{x:gpRight-cw(gpStr,sz),y:epPdfY,size:sz,font:font,color:blue});}
       }
     });
+
+    // Option A: Fill LV cover page (Unternehmer + Offertsumme)
+    try{ await fillCoverPage(mainDoc,font,fontB,brutto,mwst,netto); }
+    catch(e){ console.warn('[CoverPage]',e); }
 
     // Build Deckblatt
     var dbDoc=await PDFLib.PDFDocument.load(Uint8Array.from(atob(DECKBLATT_B64),function(c){return c.charCodeAt(0);}));

@@ -260,7 +260,7 @@ body{font-family:var(--font);font-size:13px;background:var(--bg);color:var(--tex
   <div class="drop-screen">
     <div class="drop-card">
       <div class="eyebrow">LV-Offerte</div>
-      <div style="font-family:var(--mono);font-size:9px;color:var(--dim);margin-bottom:8px">Deploy: 12.04.2026 13:58</div>
+      <div style="font-family:var(--mono);font-size:9px;color:var(--dim);margin-bottom:8px">Deploy: 12.04.2026 14:03</div>
       <h1>Leistungsverzeichnis<br>ausfüllen</h1>
       <div class="drop-zone" id="dropZone"
         ondragover="event.preventDefault();this.classList.add('over')"
@@ -365,6 +365,7 @@ var PROJ_FILIALE = {
   '151': {code:'FGR', name:'Filiale Graubünden',   ort:'Trimmis'},
   '171': {code:'FSG', name:'Filiale St. Gallen',       ort:'Waldkirch'},
   '181': {code:'FZS', name:'Filiale Zentralschweiz',   ort:'Cham'},
+  '191': {code:'DAV', name:'DAV-Zürich',                 ort:'Zürich'},
 };
 function cw(str,sz){var W=0;for(var i=0;i<str.length;i++){var ch=str.charCodeAt(i);if(ch===39||ch===8217||ch===46||ch===44)W+=0.278;else if(ch===32)W+=0.278;else W+=0.556;}return W*sz;}
 var COND_CATS = {
@@ -549,7 +550,6 @@ function openFill(){
     '<button class="btn btn-ghost" onclick="showView(\'vSelect\')">&#8592; Zur\u00fcck</button>'+
     '<button class="btn btn-ghost" onclick="clearFill()" style="color:var(--red)">\u2715 Leeren</button>'+
     '<button class="btn btn-ghost" onclick="toggleCond()">Bedingungen</button>'+
-    '<select id="filialeSelect" style="padding:4px 8px;border:1.5px solid var(--border2);border-radius:5px;font-size:11px;font-family:var(--font);background:var(--surface)"><option value="Oberglatt">Filiale Zürich</option><option value="Oberentfelden">Filiale Aargau</option><option value="Niederurnen">Filiale Glarus</option><option value="Trimmis">Filiale Graubünden</option><option value="Waldkirch">Filiale St. Gallen</option><option value="Cham">Filiale Zentralschweiz</option></select>'+
     '<span style="display:inline-flex;align-items:center;gap:5px;font-size:11px;color:var(--muted)">Rabatt <input id="rabattInput" type="number" min="0" max="100" step="0.5" value="0" style="width:48px;padding:4px 6px;border:1.5px solid var(--border2);border-radius:5px;font-size:11px;font-family:var(--mono);text-align:center"> %</span>'+
     '<button class="btn btn-dark" onclick="savePdf()">\u2193 PDF herunterladen</button>';
   buildCondPanel();
@@ -1120,7 +1120,12 @@ async function savePdf(){
     }
 
     // Ort und Datum (Unterschrift/Stempel wird separat aufgedruckt)
-    var filialeOrt=(document.getElementById('filialeSelect')?document.getElementById('filialeSelect').value:null)||'Oberglatt';
+    // Auto-detect Filiale from project number prefix (121=ZH, 131=AG, 141=GL, 151=GR, 171=SG, 181=ZS, 191=DAV)
+    var filialeOrt=(function(){
+      var prefix=String(pdfProjNr||'').slice(0,3);
+      if(PROJ_FILIALE[prefix]) return PROJ_FILIALE[prefix].ort;
+      return 'Oberglatt'; // default Zürich
+    })();
     ty=140;
     var ortDatumStr=filialeOrt+', '+dateStr;
     dbPage.drawText('Ort, Datum:',{x:leftX,y:ty,size:9,font:dbFont,color:gray});

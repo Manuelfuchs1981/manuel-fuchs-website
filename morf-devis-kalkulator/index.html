@@ -205,6 +205,17 @@ body{font-family:var(--font);font-size:13px;background:var(--bg);color:var(--tex
 .toast.ok{background:var(--green)}.toast.err{background:var(--red)}
 .toast.info{background:#927200}
 
+/* PROGRESS BAR */
+.progress-overlay{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:400;
+  display:none;flex-direction:column;align-items:center;justify-content:center;gap:16px}
+.progress-overlay.active{display:flex}
+.progress-box{background:#fff;border-radius:12px;padding:28px 36px;min-width:320px;text-align:center}
+.progress-title{font-size:14px;font-weight:600;margin-bottom:6px;color:var(--text)}
+.progress-sub{font-size:11px;color:var(--muted);margin-bottom:16px;font-family:var(--mono)}
+.progress-bar-wrap{background:#f0f0ed;border-radius:99px;height:8px;overflow:hidden}
+.progress-bar-fill{height:100%;background:var(--yellow);border-radius:99px;
+  width:0%;transition:width .3s ease}
+
 @keyframes spin{to{transform:rotate(360deg)}}
 </style>
 </head>
@@ -249,7 +260,7 @@ body{font-family:var(--font);font-size:13px;background:var(--bg);color:var(--tex
   <div class="drop-screen">
     <div class="drop-card">
       <div class="eyebrow">LV-Offerte</div>
-      <div style="font-family:var(--mono);font-size:9px;color:var(--dim);margin-bottom:8px">Deploy: 12.04.2026 13:20</div>
+      <div style="font-family:var(--mono);font-size:9px;color:var(--dim);margin-bottom:8px">Deploy: 12.04.2026 13:26</div>
       <h1>Leistungsverzeichnis<br>ausfüllen</h1>
       <div class="drop-zone" id="dropZone"
         ondragover="event.preventDefault();this.classList.add('over')"
@@ -338,6 +349,7 @@ body{font-family:var(--font);font-size:13px;background:var(--bg);color:var(--tex
 </div>
 
 <div class="toast" id="toast"></div>
+<div class="progress-overlay" id="progressOverlay"><div class="progress-box"><div class="progress-title" id="progressTitle">Wird analysiert…</div><div class="progress-sub" id="progressSub"></div><div class="progress-bar-wrap"><div class="progress-bar-fill" id="progressFill"></div></div></div></div>
 
 <script>
 pdfjsLib.GlobalWorkerOptions.workerSrc =
@@ -405,6 +417,16 @@ function refreshCostDisplays(){
 
 // ── TOAST ─────────────────────────────────────────────────────
 var _tt;
+function showProgress(title,sub,pct){
+  var o=document.getElementById('progressOverlay');
+  if(o) o.classList.add('active');
+  var t=document.getElementById('progressTitle'); if(t) t.textContent=title;
+  var s=document.getElementById('progressSub'); if(s) s.textContent=sub||'';
+  var f=document.getElementById('progressFill'); if(f) f.style.width=(pct||0)+'%';
+}
+function hideProgress(){
+  var o=document.getElementById('progressOverlay'); if(o) o.classList.remove('active');
+}
 function showToast(msg,type){
   clearTimeout(_tt);
   var t=document.getElementById('toast');
@@ -524,7 +546,7 @@ function openFill(){
     '<button class="btn btn-ghost" onclick="showView(\'vSelect\')">&#8592; Zur\u00fcck</button>'+
     '<button class="btn btn-ghost" onclick="clearFill()" style="color:var(--red)">\u2715 Leeren</button>'+
     '<button class="btn btn-ghost" onclick="toggleCond()">Bedingungen</button>'+
-    '<button class="btn btn-dark" onclick="savePdf()">\u2193 PDF speichern</button>';
+    '<button class="btn btn-dark" onclick="savePdf()">\u2193 PDF herunterladen</button>';
   buildCondPanel();
 }
 
@@ -598,7 +620,8 @@ async function runClaudeParser(){
     openFill();
     for(var i=0;i<pages.length;i++){
       var pi=pages[i];
-      showToast('Seite '+(pi+1)+' / '+pjsDoc.numPages+' \u2026','info');
+      var pct=Math.round((i/pages.length)*80);
+      showProgress('Seite '+(pi+1)+' von '+pages.length+' wird analysiert','Claude API + PDF.js',pct);
       var page=await pjsDoc.getPage(pi+1);
       var vp1=page.getViewport({scale:1});
       var pageW=vp1.width, pageH=vp1.height;
@@ -632,7 +655,7 @@ async function runClaudeParser(){
 
       // If no text found: image-based PDF → run OCR on the rendered canvas
       if(allItems.length===0){
-        showToast('Bild-PDF erkannt — OCR läuft…','info');
+        showProgress('Bild-PDF erkannt','OCR läuft — bitte warten…',10);
         try{
           var ocrWorker=await Tesseract.createWorker('deu',1);
           var ocrResult=await ocrWorker.recognize(canvas.toDataURL('image/jpeg',0.92));
@@ -769,18 +792,20 @@ async function runClaudeParser(){
         for(var idx=0;idx<pdfRows.length;idx++){
           var row=pdfRows[idx];
           var cl=clRows[idx]||{pos:'p'+pi+'_'+idx,qty:0,unit:''};
-          // Parse qty/unit from PDF.js text (more reliable than Claude)
-          var unitPat='(m\u00b2|m2|m(?!\\w)|St\\.?|gl\\.?|kg|LE|Stk\\.?|h(?!\\w)|pauschal)';
-          var qtyMatch=row.text.match(new RegExp('([0-9][0-9 ,.]*?)\\s+'+unitPat,'i'));
-          if(qtyMatch){
-            var qtyParsed=parseFloat(qtyMatch[1].replace(/[, ]/g,'').replace(',','.'));
-            var unitParsed=qtyMatch[2].replace(/m2/i,'m\u00b2').replace(/Stk\.?/i,'St');
-            if(!isNaN(qtyParsed)&&qtyParsed>0){ cl.qty=qtyParsed; cl.unit=unitParsed; }
+          // Trust Claude's qty; only use regex fallback if Claude returned 0
+          if((cl.qty===0||cl.qty===undefined)&&!/\bper\b/i.test(row.text)){
+            var unitPat='(m\u00b2|m2|m(?!\\w)|St\\.?|gl\\.?|kg|LE|Stk\\.?|h(?!\\w)|pauschal)';
+            var qtyMatch=row.text.match(new RegExp('(\\d+\\.?\\d*)\\s+'+unitPat+'\\s','i'));
+            if(qtyMatch){
+              var qtyParsed=parseFloat(qtyMatch[1]);
+              var unitParsed=qtyMatch[2].replace(/m2/i,'m\u00b2').replace(/Stk\.?/i,'St');
+              if(!isNaN(qtyParsed)&&qtyParsed>0){ cl.qty=qtyParsed; cl.unit=unitParsed; }
+            }
           }
           if(/\bper\b/i.test(row.text)) cl.qty=0;
           var canvasY=Math.round((pageH-row.y)*S)-rowH+2;
           var epBox={x:Math.round(row.ep.x*S),y:canvasY,w:Math.round(row.ep.w*S),h:rowH};
-          var gpBox=row.gp?{x:Math.round(row.gp.x*S),y:canvasY,
+          var gpBox=(row.gp&&cl.qty>0)?{x:Math.round(row.gp.x*S),y:canvasY,
             w:Math.min(Math.round(row.gp.w*S),canvas.width-Math.round(row.gp.x*S)-2),h:rowH}:null;
           var key=cl.pos||('p'+pi+'_'+idx);
           if(parsedPos[key]) key+='_p'+pi;
@@ -804,9 +829,10 @@ async function runClaudeParser(){
         window._uebertragEls[pi]=uEl;
       }
     }
+    hideProgress();
     showToast('\u2713 '+Object.keys(parsedPos).length+' Positionen erkannt','ok');
   } catch(e){
-    console.error(e); showToast('Fehler: '+e.message,'err');
+    hideProgress(); console.error(e); showToast('Fehler: '+e.message,'err');
   } finally{
     if(btn){ btn.disabled=false; btn.textContent='\u2746 Claude analysieren'; }
   }
@@ -912,7 +938,10 @@ function placeField(key,overlay,p){
   });
   ep.addEventListener('blur',function(){
     var pp=parsedPos[key];
-    if(pp&&pp.ep>0&&pp.status==='price') this.value=fmtN(pp.ep);
+    if(pp&&pp.status==='price'){
+      if(pp.ep>0) this.value=fmtN(pp.ep);
+      else if(this.value==='0') this.value='0.00';
+    }
   });
   ep.addEventListener('keydown',function(e){
     if(e.key==='Tab'||e.key==='Enter'){
@@ -956,7 +985,7 @@ async function savePdf(){
   if(!sourcePdfBuf||typeof PDFLib==='undefined'){showToast('PDF nicht bereit','err');return;}
   showToast('PDF wird erstellt\u2026','info');
   try{
-    var pdfDoc=await PDFLib.PDFDocument.load(new Uint8Array(sourcePdfBuf),{ignoreEncryption:true});
+    var pdfDoc=await PDFLib.PDFDocument.load(new Uint8Array(sourcePdfBuf.slice(0)),{ignoreEncryption:true});
     var font=await pdfDoc.embedFont(PDFLib.StandardFonts.Helvetica);
     var fontB=await pdfDoc.embedFont(PDFLib.StandardFonts.HelveticaBold);
     var pages=pdfDoc.getPages();

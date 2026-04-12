@@ -208,7 +208,6 @@ body{font-family:var(--font);font-size:13px;background:var(--bg);color:var(--tex
 </style>
 </head>
 <body>
-
 <div class="topbar">
   <div class="logo" onclick="showView('vDrop')">
     <img id="logoImg" src="" alt="MORF">
@@ -249,7 +248,7 @@ body{font-family:var(--font);font-size:13px;background:var(--bg);color:var(--tex
   <div class="drop-screen">
     <div class="drop-card">
       <div class="eyebrow">LV-Offerte</div>
-      <div style="font-family:var(--mono);font-size:9px;color:var(--dim);margin-bottom:8px">Deploy: 12.04.2026 10:29</div>
+      <div style="font-family:var(--mono);font-size:9px;color:var(--dim);margin-bottom:8px">Deploy: 12.04.2026 10:33</div>
       <h1>Leistungsverzeichnis<br>ausfüllen</h1>
       <div class="drop-zone" id="dropZone"
         ondragover="event.preventDefault();this.classList.add('over')"
@@ -340,34 +339,41 @@ body{font-family:var(--font);font-size:13px;background:var(--bg);color:var(--tex
 <div class="toast" id="toast"></div>
 
 <script>
-// ── SETUP ─────────────────────────────────────────────────────
 pdfjsLib.GlobalWorkerOptions.workerSrc =
   'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-
-// RENDER_SCALE and THUMB_SCALE defined in main JS below
-
-// ── GLOBALS ───────────────────────────────────────────────────
-var pjsDoc         = null;
-var sourcePdfBytes = null;
-var currentFile    = '';
-var selectedPages  = new Set();
-var parsedPos      = {};    // key → {pos,qty,unit,ep,status,pageIdx,canvasW,canvasH,epBox,gpBox}
-var pageCanvases   = {};    // pageIdx → canvas at RENDER_SCALE
-var activeConds    = [];
-var pdfProjNr      = '';
-var pdfProjBez     = '';
-
-var CLAUDE_API_KEY = localStorage.getItem('morfApiKey') || '';
-function monthKey(){ var d=new Date(); return 'morfCost_'+d.getFullYear()+'_'+(d.getMonth()+1); }
-function getMonthCost(){ return parseFloat(localStorage.getItem(monthKey())||'0'); }
-function trackCost(usd){ var k=monthKey(); localStorage.setItem(k,(getMonthCost()+usd).toFixed(4)); refreshCostDisplays(); }
-function refreshCostDisplays(){
-  var chf = (getMonthCost()*0.9).toFixed(2);
-  var el = document.getElementById('monthCostEl'); if(el) el.textContent='CHF '+chf;
-  var eb = document.getElementById('monthCostBar'); if(eb) eb.textContent='CHF '+chf;
-}
-
-// ── LOGO ──────────────────────────────────────────────────────
+var MORF_LOGO_B64 = 'data:image/webp;base64,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';
+var PROJ_FILIALE = {
+  '121': {code:'FZH', name:'Filiale Zürich',        ort:'Oberglatt'},
+  '131': {code:'FAG', name:'Filiale Aargau',           ort:'Oberentfelden'},
+  '141': {code:'FGL', name:'Filiale Glarus',           ort:'Niederurnen'},
+  '151': {code:'FGR', name:'Filiale Graubünden',   ort:'Trimmis'},
+  '171': {code:'FSG', name:'Filiale St. Gallen',       ort:'Waldkirch'},
+  '181': {code:'FZS', name:'Filiale Zentralschweiz',   ort:'Cham'},
+};
+function cw(str,sz){var W=0;for(var i=0;i<str.length;i++){var ch=str.charCodeAt(i);if(ch===39||ch===8217||ch===46||ch===44)W+=0.278;else if(ch===32)W+=0.278;else W+=0.556;}return W*sz;}
+var COND_CATS = {
+  'Parkplätze': [
+    {title:'Baustelleneinrichtung',    text:'Es ist eine Baustelleneinrichtung / Anfahrt eingerechnet.'},
+    {title:'Schablonierung',           text:'Schablonierung nach Morf Standard.'},
+    {title:'Preise exkl. MwSt.',       text:'Preise exkl. MwSt.'},
+    {title:'Betriebszeiten',           text:'Ausführung während den Betriebszeiten des Parkplatzes.'},
+    {title:'Reinigung',                text:'Allfällige Reinigungsarbeiten sind nicht inbegriffen.'},
+  ],
+  'Autobahn': [
+    {title:'Nachtarbeiten exkl.',      text:'Arbeiten in der Nacht exkl.'},
+    {title:'Baustellenanfahrt',        text:'Es wird eine Baustellenanfahrt pro 2–3 Mann-Equipe in Abrechnung gebracht.'},
+    {title:'Signalisation',            text:'Signalisation und Verkehrsführung durch den Auftraggeber.'},
+    {title:'ASTRA-Richtlinien',        text:'Ausführung gemäss ASTRA-Richtlinien.'},
+    {title:'Preise exkl. MwSt.',       text:'Preise exkl. MwSt.'},
+  ],
+  'Taktile Markierungen': [
+    {title:'SN-Normen',                text:'Ausführung gemäss SN-Normen für taktile Bodenelemente.'},
+    {title:'Material',                 text:'Material entspricht den Anforderungen für sehbehinderte Personen.'},
+    {title:'Farbton',                  text:'Farbton gemäss Projektangaben.'},
+    {title:'Preise exkl. MwSt.',       text:'Preise exkl. MwSt.'},
+    {title:'Anpassungsarbeiten',       text:'Allfällige Anpassungsarbeiten sind separat zu vergüten.'},
+  ],
+};
 
 // ── SETUP ─────────────────────────────────────────────────────
 pdfjsLib.GlobalWorkerOptions.workerSrc =
@@ -515,12 +521,11 @@ async function runClaudeParser(){
   if(btn){ btn.disabled=true; btn.textContent='\u29d7 Wird analysiert\u2026'; }
   try{
     parsedPos={}; pageCanvases={};
+    window._uebertragEls={};
     openFill();
     for(var i=0;i<pages.length;i++){
       var pi=pages[i];
       showToast('Seite '+(pi+1)+' / '+pjsDoc.numPages+' \u2026','info');
-
-      // ── 1. PDF.js: all text items at scale=1 ──────────────────
       var page=await pjsDoc.getPage(pi+1);
       var vp1=page.getViewport({scale:1});
       var pageW=vp1.width, pageH=vp1.height;
@@ -528,62 +533,35 @@ async function runClaudeParser(){
       var allItems=[];
       tc.items.forEach(function(it){
         if(!it.str.trim()) return;
-        allItems.push({str:it.str.trim(), x:it.transform[4], y:it.transform[5],
-          w:it.width||0, h:Math.abs(it.transform[3])||10});
+        allItems.push({str:it.str.trim(),x:it.transform[4],y:it.transform[5],w:it.width||0,h:Math.abs(it.transform[3])||10});
       });
-
-      // ── 2. Group items into lines ──────────────────────────────
       var lineMap={};
       allItems.forEach(function(it){
         var b=Math.round(it.y/3)*3;
-        if(!lineMap[b]) lineMap[b]={y:it.y, items:[]};
+        if(!lineMap[b]) lineMap[b]={y:it.y,items:[]};
         lineMap[b].items.push(it);
       });
       var lines=Object.values(lineMap).sort(function(a,b){ return b.y-a.y; });
 
-      // ── 3. Find price rows: lines with dot items ───────────────
-      // Dots = text item with 4+ consecutive dots → exact x, y, w
-      // Only count dots in the RIGHT portion of page (price columns, not description text)
-      // "Weiteres ............" etc. appear left of center → filter them out
-      var dotThresholdX = pageW * 0.55; // dots must start past 55% of page width
-      var uebertragRow = null; // special: page subtotal line
+      // Find price rows: dot items right of 55% page width
+      var dotThresholdX=pageW*0.55;
+      var uebertragRow=null;
       var pdfRows=[];
       lines.forEach(function(line){
-        var dots=line.items.filter(function(it){
-          return /\.{4,}/.test(it.str) && it.x >= dotThresholdX;
-        });
+        var dots=line.items.filter(function(it){ return /\.{4,}/.test(it.str)&&it.x>=dotThresholdX; });
         if(!dots.length) return;
         dots.sort(function(a,b){ return a.x-b.x; });
         var nonDots=line.items.filter(function(it){ return !/\.{4,}/.test(it.str); });
         var txt=nonDots.map(function(it){ return it.str; }).join(' ').trim();
-
-        // Detect Übertrag / Zwischentotal lines → handle separately as page total
         if(/\u00fcbertrag|zwischentotal|total\s*$/i.test(txt)){
-          uebertragRow={y:line.y, ep:dots[0], gp:dots.length>1?dots[dots.length-1]:null};
-          return; // skip from regular price rows
+          uebertragRow={y:line.y,ep:dots[0],gp:dots.length>1?dots[dots.length-1]:null};
+          return;
         }
+        pdfRows.push({y:line.y,text:txt,ep:dots[0],gp:dots.length>1?dots[dots.length-1]:null});
+      });
+      console.log('[PDF.js] Page '+pi+': '+pdfRows.length+' dot-rows'+(uebertragRow?' + Übertrag':''));
 
-        pdfRows.push({y:line.y, text:txt, ep:dots[0],
-          gp:dots.length>1 ? dots[dots.length-1] : null});
-      });
-        if(!dots.length) return;
-        dots.sort(function(a,b){ return a.x-b.x; });
-        var nonDots=line.items.filter(function(it){ return !/\.{4,}/.test(it.str); });
-        var txt=nonDots.map(function(it){ return it.str; }).join(' ').trim();
-        pdfRows.push({
-          y:    line.y,
-          text: txt,
-          ep:   dots[0],                          // exact dot item → x, w
-          gp:   dots.length>1 ? dots[dots.length-1] : null
-        });
-      });
-      console.log('[PDF.js] Page '+pi+': '+pdfRows.length+' dot-rows');
-      pdfRows.forEach(function(r){
-        console.log('  y='+r.y.toFixed(1)+' ep.x='+r.ep.x.toFixed(1)
-          +' ep.w='+r.ep.w.toFixed(1)+' txt="'+r.text.slice(0,50)+'"');
-      });
-
-      // ── 4. Render page ─────────────────────────────────────────
+      // Render page
       var vp=page.getViewport({scale:RENDER_SCALE});
       var canvas=document.createElement('canvas');
       canvas.width=vp.width; canvas.height=vp.height;
@@ -597,36 +575,30 @@ async function runClaudeParser(){
       wrap.appendChild(canvas); wrap.appendChild(overlay);
       document.getElementById('fillPages').appendChild(wrap);
 
-      // ── 5. Claude: label each dot-row ─────────────────────────
-      var clRows=await askClaude(canvas, pdfRows);
+      // Claude: label rows
+      var clRows=await askClaude(canvas,pdfRows);
       trackCost(0.008);
-      console.log('[Claude] Page '+pi+': '+clRows.length+' labels');
+      console.log('[Claude] Page '+pi+':',JSON.stringify(clRows));
 
-      // ── 6. Match labels to dot-rows, place fields ──────────────
       var S=RENDER_SCALE;
       var rowH=Math.round(13*S);
 
       if(pdfRows.length===0){
-        // No dots: Claude provides full info, use approx_y + column headers
-        var epColX=null, gpColX=null, epColW=pageW*0.13, gpColW=pageW*0.15;
+        // No dots: column-header fallback
+        var epColX=null,gpColX=null,epColW=pageW*0.13,gpColW=pageW*0.15;
         for(var ii=0;ii<allItems.length-1;ii++){
-          var s1=allItems[ii].str, s2=allItems[ii+1].str;
-          var combined=(s1+' '+s2).toLowerCase();
-          if(!epColX && (combined.indexOf('eh preis')>=0||combined.indexOf('einheitspreis')>=0||s1.toLowerCase()==='ep')){
-            epColX=allItems[ii].x;
-            if(allItems[ii+1] && Math.abs(allItems[ii+1].y-allItems[ii].y)<5)
-              epColW=Math.max((allItems[ii].w+allItems[ii+1].w)*2.5, pageW*0.12);
+          var combined=(allItems[ii].str+' '+allItems[ii+1].str).toLowerCase();
+          if(!epColX&&(combined.indexOf('eh preis')>=0||combined.indexOf('einheitspreis')>=0)){
+            epColX=allItems[ii].x; epColW=Math.max((allItems[ii].w+allItems[ii+1].w)*2.5,pageW*0.12);
           }
-          if(!gpColX && (combined.indexOf('totalbetrag')>=0||combined.indexOf('gesamtpreis')>=0||s1.toLowerCase()==='gp')){
+          if(!gpColX&&(combined.indexOf('totalbetrag')>=0||combined.indexOf('gesamtpreis')>=0)){
             gpColX=allItems[ii].x; gpColW=pageW-allItems[ii].x-4;
           }
         }
         if(!epColX) epColX=pageW*0.68;
         if(!gpColX){ gpColX=epColX+epColW+3; gpColW=pageW-gpColX-4; }
-
         clRows.forEach(function(cl){
           var exactY=pageH*(1-(cl.approx_y||0.5));
-          // Refine Y via marker text
           if(cl.marker){
             lines.forEach(function(line){
               var lt=line.items.map(function(it){return it.str;}).join(' ');
@@ -634,73 +606,47 @@ async function runClaudeParser(){
             });
           }
           var canvasY=Math.round((pageH-exactY)*S)-rowH+2;
-          var epBox={x:Math.round(epColX*S), y:canvasY, w:Math.round(epColW*S), h:rowH};
-          var gpBox=cl.has_gp===false ? null :
-            {x:Math.round(gpColX*S), y:canvasY,
-             w:Math.min(Math.round(gpColW*S), canvas.width-Math.round(gpColX*S)-2), h:rowH};
+          var epBox={x:Math.round(epColX*S),y:canvasY,w:Math.round(epColW*S),h:rowH};
+          var gpBox=cl.has_gp===false?null:
+            {x:Math.round(gpColX*S),y:canvasY,w:Math.min(Math.round(gpColW*S),canvas.width-Math.round(gpColX*S)-2),h:rowH};
           var key=cl.pos||('p'+pi+'_'+Math.round(exactY));
           if(parsedPos[key]) key+='_b';
           parsedPos[key]={pos:cl.pos||key,qty:cl.qty||0,unit:cl.unit||'',
-            ep:0,status:'price',pageIdx:pi,canvasW:canvas.width,canvasH:canvas.height,
-            epBox:epBox,gpBox:gpBox};
+            ep:0,status:'price',pageIdx:pi,canvasW:canvas.width,canvasH:canvas.height,epBox:epBox,gpBox:gpBox};
           placeField(key,overlay,parsedPos[key]);
         });
       } else {
-        // Match Claude labels to PDF.js dot-rows 1:1 by order
-        var n=Math.max(clRows.length, pdfRows.length);
         for(var idx=0;idx<pdfRows.length;idx++){
           var row=pdfRows[idx];
-          var cl=clRows[idx]||{pos:'p'+pi+'_'+idx, qty:0, unit:''};
-
-          // Convert exact dot positions → canvas pixels
+          var cl=clRows[idx]||{pos:'p'+pi+'_'+idx,qty:0,unit:''};
           var canvasY=Math.round((pageH-row.y)*S)-rowH+2;
-          var epBox={
-            x:   Math.round(row.ep.x*S),
-            y:   canvasY,
-            w:   Math.round(row.ep.w*S),
-            h:   rowH
-          };
-          var gpBox=row.gp ? {
-            x:   Math.round(row.gp.x*S),
-            y:   canvasY,
-            w:   Math.min(Math.round(row.gp.w*S), canvas.width-Math.round(row.gp.x*S)-2),
-            h:   rowH
-          } : null;
-
+          var epBox={x:Math.round(row.ep.x*S),y:canvasY,w:Math.round(row.ep.w*S),h:rowH};
+          var gpBox=row.gp?{x:Math.round(row.gp.x*S),y:canvasY,
+            w:Math.min(Math.round(row.gp.w*S),canvas.width-Math.round(row.gp.x*S)-2),h:rowH}:null;
           var key=cl.pos||('p'+pi+'_'+idx);
           if(parsedPos[key]) key+='_p'+pi;
           parsedPos[key]={pos:cl.pos||key,qty:cl.qty||0,unit:cl.unit||'',
-            ep:0,status:'price',pageIdx:pi,canvasW:canvas.width,canvasH:canvas.height,
-            epBox:epBox,gpBox:gpBox};
+            ep:0,status:'price',pageIdx:pi,canvasW:canvas.width,canvasH:canvas.height,epBox:epBox,gpBox:gpBox};
           placeField(key,overlay,parsedPos[key]);
-          console.log('[Place]',key,'y='+row.y.toFixed(1),
-            'ep=['+epBox.x+','+epBox.y+','+epBox.w+']');
         }
       }
 
-      // ── 7. Übertrag: place read-only auto-sum field ────────────
+      // Übertrag field (auto-sum)
       if(uebertragRow){
         var ur=uebertragRow;
         var uCanvasY=Math.round((pageH-ur.y)*S)-rowH+2;
-        // Only GP column (sum of all GP on this page)
-        var uGpBox=ur.gp ? {
-          x:Math.round(ur.gp.x*S), y:uCanvasY,
-          w:Math.min(Math.round(ur.gp.w*S), canvas.width-Math.round(ur.gp.x*S)-2),
-          h:rowH
-        } : null;
+        var uGpBox=ur.gp?{x:Math.round(ur.gp.x*S),y:uCanvasY,
+          w:Math.min(Math.round(ur.gp.w*S),canvas.width-Math.round(ur.gp.x*S)-2),h:rowH}:null;
         if(uGpBox){
           var uEl=makeField('uebertrag_p'+pi,'gp',uGpBox);
-          uEl.readOnly=true; uEl.tabIndex=-1;
-          uEl.style.fontWeight='600';
-          uEl.title='\u00dcbertrag (Seitensumme)';
-          uEl.dataset.uebertrag=pi; // mark for auto-update
+          uEl.readOnly=true; uEl.tabIndex=-1; uEl.style.fontWeight='600';
+          uEl.title='\u00dcbertrag';
           overlay.appendChild(uEl);
-          // Store reference
-          if(!window._uebertragEls) window._uebertragEls={};
           window._uebertragEls[pi]=uEl;
-          console.log('[Übertrag] Page '+pi+' at y='+ur.y.toFixed(1));
+          console.log('[Übertrag] Page '+pi+' y='+ur.y.toFixed(1));
         }
       }
+    }
     showToast('\u2713 '+Object.keys(parsedPos).length+' Positionen erkannt','ok');
   } catch(e){
     console.error(e); showToast('Fehler: '+e.message,'err');
@@ -709,37 +655,20 @@ async function runClaudeParser(){
   }
 }
 
-async function askClaude(canvas, pdfRows){
+async function askClaude(canvas,pdfRows){
   var b64=canvas.toDataURL('image/jpeg',0.88).split(',')[1];
   var prompt;
-
   if(pdfRows.length>0){
-    // Context-aware: tell Claude exactly which rows PDF.js found
-    var rowList=pdfRows.map(function(r,i){
-      return (i+1)+'. context text: "'+r.text.slice(0,50)+'"';
-    }).join('\n');
-    prompt='Swiss NPK price list. PDF analysis found '+pdfRows.length
-      +' price row(s) by dotted lines, listed top to bottom:\n'
-      +rowList+'\n\n'
-      +'For each row (same order), return:\n'
-      +'- pos: position number visible near this row ("181>083", "111.004")\n'
-      +'- qty: quantity on this row (0 if open/per-unit)\n'
-      +'- unit: unit on this row (St, m, LE, gl, kg, h, pauschal)\n\n'
-      +'Return ONLY JSON array with exactly '+pdfRows.length+' entries:\n'
+    var rowList=pdfRows.map(function(r,i){ return (i+1)+'. context: "'+r.text.slice(0,50)+'"'; }).join('\n');
+    prompt='Swiss NPK price list. PDF found '+pdfRows.length+' price row(s) by dotted lines, top to bottom:\n'
+      +rowList+'\n\nFor each row (same order) return pos/qty/unit.\n'
+      +'JSON only with exactly '+pdfRows.length+' entries:\n'
       +'[{"pos":"181>083","qty":4,"unit":"St"},...]';
   } else {
-    prompt='Swiss NPK price list. No dotted lines found on this page.\n\n'
-      +'List every price row where a unit price must be entered.\n'
-      +'Return:\n'
-      +'- pos: position number\n'
-      +'- qty: quantity (0 if open)\n'
-      +'- unit: unit\n'
-      +'- marker: unique text on the price row (qty+unit preferred, e.g. "4 St")\n'
-      +'- approx_y: vertical fraction 0=top 1=bottom\n'
-      +'- has_gp: true/false\n\n'
-      +'JSON only: [{"pos":"222.100","qty":30,"unit":"m","marker":"30.00 m","approx_y":0.4,"has_gp":true},...]';
+    prompt='Swiss NPK price list. No dotted lines found.\n'
+      +'List all price rows. JSON:\n'
+      +'[{"pos":"222.100","qty":30,"unit":"m","marker":"30.00 m","approx_y":0.4,"has_gp":true},...]';
   }
-
   var resp=await fetch('https://api.anthropic.com/v1/messages',{
     method:'POST',
     headers:{'content-type':'application/json','x-api-key':CLAUDE_API_KEY,
@@ -749,20 +678,26 @@ async function askClaude(canvas, pdfRows){
         {type:'image',source:{type:'base64',media_type:'image/jpeg',data:b64}},
         {type:'text',text:prompt}]}]})
   });
-  if(!resp.ok){
-    var e=await resp.json().catch(function(){return{};});
-    throw new Error('Claude API: '+((e.error&&e.error.message)||resp.status));
-  }
+  if(!resp.ok){var e=await resp.json().catch(function(){return{};});
+    throw new Error('Claude API: '+((e.error&&e.error.message)||resp.status));}
   var data=await resp.json();
-  var text='';
-  (data.content||[]).forEach(function(b){ if(b.type==='text') text+=b.text; });
+  var text='';(data.content||[]).forEach(function(b){if(b.type==='text')text+=b.text;});
   var m=text.match(/\[[\s\S]*\]/);
-  if(!m){ console.warn('[Claude] No JSON:',text); return []; }
-  try{ return JSON.parse(m[0]); }
-  catch(e){ console.error('[Claude] JSON error:',text); return []; }
+  if(!m){console.warn('[Claude] No JSON:',text);return[];}
+  try{return JSON.parse(m[0]);}catch(e){console.error('[Claude] JSON error:',text);return[];}
 }
 
-// ── PLACE FIELD ───────────────────────────────────────────────
+function updateUebertrag(pageIdx){
+  if(!window._uebertragEls||!window._uebertragEls[pageIdx]) return;
+  var sum=0;
+  Object.values(parsedPos).forEach(function(p){
+    if(p.pageIdx===pageIdx&&p.ep>0&&p.qty>0&&p.status==='price') sum+=p.ep*p.qty;
+  });
+  var el=window._uebertragEls[pageIdx];
+  el.value=sum>0?fmtN(sum):'';
+  el.className='fill-field gp'+(sum>0?' filled':'');
+}
+
 function placeField(key,overlay,p){
   var ep=makeField(key,'ep',p.epBox);
   ep.addEventListener('input',function(){
@@ -787,8 +722,8 @@ function placeField(key,overlay,p){
         pp.ep=0;pp.status='price';this.className='fill-field';
         if(gpEl){gpEl.value='';gpEl.className='fill-field gp';}
       }
-      updateUebertrag(pp.pageIdx);
     }
+    updateUebertrag(pp.pageIdx);
   });
   ep.addEventListener('focus',function(){
     var pp=parsedPos[key];
@@ -802,16 +737,12 @@ function placeField(key,overlay,p){
     if(e.key==='Tab'||e.key==='Enter'){
       e.preventDefault();
       var all=Array.from(document.querySelectorAll('.fill-field:not(.gp)'));
-      var idx=all.indexOf(this);
-      if(idx>=0&&idx<all.length-1){all[idx+1].focus();all[idx+1].select();}
+      var idx2=all.indexOf(this);
+      if(idx2>=0&&idx2<all.length-1){all[idx2+1].focus();all[idx2+1].select();}
     }
   });
   overlay.appendChild(ep);
-  if(p.gpBox){
-    var gp=makeField(key,'gp',p.gpBox);
-    gp.readOnly=true;gp.tabIndex=-1;
-    overlay.appendChild(gp);
-  }
+  if(p.gpBox){var gp=makeField(key,'gp',p.gpBox);gp.readOnly=true;gp.tabIndex=-1;overlay.appendChild(gp);}
   var del=document.createElement('button');
   del.className='del-btn';del.textContent='\u00d7';del.title='Ausblenden';
   var box=p.gpBox||p.epBox;
@@ -823,153 +754,21 @@ function placeField(key,overlay,p){
   overlay.appendChild(del);
 }
 
-function updateUebertrag(pageIdx){
-  if(!window._uebertragEls||!window._uebertragEls[pageIdx]) return;
-  var sum=0;
-  Object.values(parsedPos).forEach(function(p){
-    if(p.pageIdx===pageIdx&&p.ep>0&&p.qty>0&&p.status==='price') sum+=p.ep*p.qty;
-  });
-  var el=window._uebertragEls[pageIdx];
-  el.value=sum>0?fmtN(sum):'';
-  el.className='fill-field gp'+(sum>0?' filled':'');
-}
-
 function makeField(key,type,box){
   var el=document.createElement('input');
-  el.type='text'; el.className='fill-field'+(type==='gp'?' gp':'');
-  el.dataset.key=key; el.dataset.type=type;
-  el.style.left=box.x+'px'; el.style.top=box.y+'px';
-  el.style.width=box.w+'px'; el.style.height=box.h+'px';
+  el.type='text';el.className='fill-field'+(type==='gp'?' gp':'');
+  el.dataset.key=key;el.dataset.type=type;
+  el.style.left=box.x+'px';el.style.top=box.y+'px';
+  el.style.width=box.w+'px';el.style.height=box.h+'px';
   el.style.fontSize='10px';
   return el;
 }
-
 function fmtN(n){
   if(!n&&n!==0) return '';
   var parts=Number(n).toFixed(2).split('.');
   parts[0]=parts[0].replace(/\B(?=(\d{3})+(?!\d))/g,"'");
   return parts[0]+'.'+parts[1];
 }
-
-// ── FILL VIEW ─────────────────────────────────────────────────
-function openFill(){
-  showView('vFill');
-  document.getElementById('fillPages').innerHTML='';
-  document.getElementById('fillLoading').style.display='none';
-  document.getElementById('topHint').textContent=
-    'Tab = n\u00e4chste  \u00b7  k.a. = Keine Angabe  \u00b7  b = bauseits  \u00b7  i = inkl.';
-  document.getElementById('topRight').innerHTML=
-    '<button class="btn btn-ghost" onclick="showView(\'vSelect\')">&#8592; Zur\u00fcck</button>'+
-    '<button class="btn btn-ghost" onclick="clearFill()" style="color:var(--red)">\u2715 Leeren</button>'+
-    '<button class="btn btn-ghost" onclick="toggleCond()">Bedingungen</button>'+
-    '<button class="btn btn-dark" onclick="savePdf()">\u2193 PDF speichern</button>';
-  buildCondPanel();
-}
-
-function clearFill(){
-  Object.values(parsedPos).forEach(function(p){ p.ep=0; p.status='price'; });
-  document.querySelectorAll('.fill-field:not(.gp)').forEach(function(el){
-    el.value=''; el.className='fill-field';
-  });
-  document.querySelectorAll('.fill-field.gp').forEach(function(el){
-    el.value=''; el.className='fill-field gp';
-  });
-  showToast('Alle Felder geleert','ok');
-}
-
-// ── CONDITIONS ────────────────────────────────────────────────
-function buildCondPanel(){
-  var cats=document.getElementById('condCats'); cats.innerHTML='';
-  Object.keys(COND_CATS).forEach(function(cat){
-    var div=document.createElement('div'); div.className='cond-cat';
-    var btn=document.createElement('button'); btn.className='cond-cat-btn';
-    btn.innerHTML=cat+' <span class="arr">&#9658;</span>';
-    var items=document.createElement('div'); items.className='cond-items';
-    btn.onclick=function(){ btn.classList.toggle('open'); items.classList.toggle('open'); };
-    COND_CATS[cat].forEach(function(entry){
-      var titleStr=typeof entry==='string'?entry:String(entry&&entry.title||'');
-      var textStr=typeof entry==='string'?entry:String(entry&&entry.text||entry&&entry.title||'');
-      var item=document.createElement('div'); item.className='cond-item';
-      var id='cond_'+(cat+titleStr).replace(/\W/g,'').slice(0,20);
-      var cb=document.createElement('input'); cb.type='checkbox'; cb.id=id;
-      cb.checked=activeConds.some(function(a){ return a.text===textStr; });
-      cb.addEventListener('change',function(){
-        if(this.checked){ if(!activeConds.some(function(a){ return a.text===textStr; })) activeConds.push({text:textStr,title:titleStr}); }
-        else{ activeConds=activeConds.filter(function(a){ return a.text!==textStr; }); }
-        updateCondPreview();
-      });
-      var lbl=document.createElement('label'); lbl.htmlFor=id; lbl.textContent=titleStr; lbl.title=textStr;
-      item.appendChild(cb); item.appendChild(lbl); items.appendChild(item);
-    });
-    div.appendChild(btn); div.appendChild(items); cats.appendChild(div);
-  });
-}
-
-function updateCondPreview(){
-  var manual=document.getElementById('condManual').value.trim();
-  var lines=activeConds.map(function(c){ return '\u2022 '+c.text; });
-  if(manual) manual.split('\n').forEach(function(l){ if(l.trim()) lines.push('\u2022 '+l.trim()); });
-  document.getElementById('condPreview').innerHTML=
-    lines.length?lines.join('<br>'):'<span style="color:var(--dim)">Keine Bedingungen</span>';
-}
-
-function getActiveConds(){
-  var manual=document.getElementById('condManual')?document.getElementById('condManual').value.trim():'';
-  var lines=activeConds.map(function(c){ return c.text; });
-  if(manual) manual.split('\n').forEach(function(l){ if(l.trim()) lines.push(l.trim()); });
-  return lines;
-}
-
-function toggleCond(){
-  document.getElementById('condPanel').classList.toggle('open');
-  document.getElementById('fillBody').classList.toggle('with-panel');
-}
-
-
-// LOGO
-var MORF_LOGO_B64 = 'data:image/webp;base64,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';
-
-// FILIALE
-var PROJ_FILIALE = {
-  '121': {code:'FZH', name:'Filiale Zürich',        ort:'Oberglatt'},
-  '131': {code:'FAG', name:'Filiale Aargau',           ort:'Oberentfelden'},
-  '141': {code:'FGL', name:'Filiale Glarus',           ort:'Niederurnen'},
-  '151': {code:'FGR', name:'Filiale Graubünden',   ort:'Trimmis'},
-  '171': {code:'FSG', name:'Filiale St. Gallen',       ort:'Waldkirch'},
-  '181': {code:'FZS', name:'Filiale Zentralschweiz',   ort:'Cham'},
-};
-
-// CW
-function cw(str,sz){var W=0;for(var i=0;i<str.length;i++){var ch=str.charCodeAt(i);if(ch===39||ch===8217||ch===46||ch===44)W+=0.278;else if(ch===32)W+=0.278;else W+=0.556;}return W*sz;}
-
-// COND_CATS
-var COND_CATS = {
-  'Parkplätze': [
-    {title:'Baustelleneinrichtung',    text:'Es ist eine Baustelleneinrichtung / Anfahrt eingerechnet.'},
-    {title:'Schablonierung',           text:'Schablonierung nach Morf Standard.'},
-    {title:'Preise exkl. MwSt.',       text:'Preise exkl. MwSt.'},
-    {title:'Betriebszeiten',           text:'Ausführung während den Betriebszeiten des Parkplatzes.'},
-    {title:'Reinigung',                text:'Allfällige Reinigungsarbeiten sind nicht inbegriffen.'},
-  ],
-  'Autobahn': [
-    {title:'Nachtarbeiten exkl.',      text:'Arbeiten in der Nacht exkl.'},
-    {title:'Baustellenanfahrt',        text:'Es wird eine Baustellenanfahrt pro 2–3 Mann-Equipe in Abrechnung gebracht.'},
-    {title:'Signalisation',            text:'Signalisation und Verkehrsführung durch den Auftraggeber.'},
-    {title:'ASTRA-Richtlinien',        text:'Ausführung gemäss ASTRA-Richtlinien.'},
-    {title:'Preise exkl. MwSt.',       text:'Preise exkl. MwSt.'},
-  ],
-  'Taktile Markierungen': [
-    {title:'SN-Normen',                text:'Ausführung gemäss SN-Normen für taktile Bodenelemente.'},
-    {title:'Material',                 text:'Material entspricht den Anforderungen für sehbehinderte Personen.'},
-    {title:'Farbton',                  text:'Farbton gemäss Projektangaben.'},
-    {title:'Preise exkl. MwSt.',       text:'Preise exkl. MwSt.'},
-    {title:'Anpassungsarbeiten',       text:'Allfällige Anpassungsarbeiten sind separat zu vergüten.'},
-  ],
-};
-
-
-function cw(str,sz){var W=0;for(var i=0;i<str.length;i++){var ch=str.charCodeAt(i);if(ch===39||ch===8217||ch===46||ch===44)W+=0.278;else if(ch===32)W+=0.278;else W+=0.556;}return W*sz;}
-
 async function savePdf(){
   if(!sourcePdfBuf||typeof PDFLib==='undefined'){showToast('PDF nicht bereit','err');return;}
   showToast('PDF wird erstellt…','info');
@@ -981,24 +780,16 @@ async function savePdf(){
     var blue=PDFLib.rgb(0,0,1);
     var sz=10;
     function fCH(n){return n.toLocaleString('de-CH',{minimumFractionDigits:2,maximumFractionDigits:2});}
-    
     Object.entries(parsedPos).forEach(function(kv){
       var d=kv[1]; if(!pages[d.pageIdx]||!d.epBox) return;
       var page=pages[d.pageIdx];
       var pH=page.getHeight();
-      // Convert canvas pixels to PDF points
-      var epX    = d.epBox.x / RENDER_SCALE;
-      var epYtop = d.epBox.y / RENDER_SCALE;
-      var epH    = d.epBox.h / RENDER_SCALE;
-      var epW    = d.epBox.w / RENDER_SCALE;
-      var epPdfY = pH - epYtop - epH; // PDF Y from bottom
-      var epRight= epX + epW;
-      var gpRight= null;
-      if(d.gpBox){
-        var gpX   = d.gpBox.x / RENDER_SCALE;
-        var gpW   = d.gpBox.w / RENDER_SCALE;
-        gpRight   = gpX + gpW;
-      }
+      var epX=d.epBox.x/RENDER_SCALE, epYtop=d.epBox.y/RENDER_SCALE;
+      var epH=d.epBox.h/RENDER_SCALE, epW=d.epBox.w/RENDER_SCALE;
+      var epPdfY=pH-epYtop-epH;
+      var epRight=epX+epW;
+      var gpRight=null;
+      if(d.gpBox){var gpX=d.gpBox.x/RENDER_SCALE; gpRight=gpX+d.gpBox.w/RENDER_SCALE;}
       if(d.status==='ka'){
         page.drawText('k. A.',{x:epRight-cw('k. A.',sz),y:epPdfY,size:sz,font:font,color:blue});
       } else if(d.status==='bauseits'){
@@ -1008,14 +799,10 @@ async function savePdf(){
       } else if(d.ep>0){
         var epStr=fCH(d.ep);
         page.drawText(epStr,{x:epRight-cw(epStr,sz),y:epPdfY,size:sz,font:font,color:blue});
-        if(d.qty>0&&gpRight){
-          var gpStr=fCH(d.ep*d.qty);
-          page.drawText(gpStr,{x:gpRight-cw(gpStr,sz),y:epPdfY,size:sz,font:font,color:blue});
-        }
+        if(d.qty>0&&gpRight){var gpStr=fCH(d.ep*d.qty);
+          page.drawText(gpStr,{x:gpRight-cw(gpStr,sz),y:epPdfY,size:sz,font:font,color:blue});}
       }
     });
-
-    // Conditions
     var conds=getActiveConds();
     if(conds.length>0){
       var lastPage=pages[pages.length-1];
@@ -1024,31 +811,29 @@ async function savePdf(){
       function wrapText(text,mW){
         var words=text.split(' '),lines=[],cur='';
         words.forEach(function(w){var test=cur?cur+' '+w:w;if(cw(test,sz)<=mW){cur=test;}else{if(cur)lines.push(cur);cur=w;}});
-        if(cur)lines.push(cur); return lines.length?lines:[''];
+        if(cur)lines.push(cur);return lines.length?lines:[''];
       }
       var allW=conds.map(function(c){return wrapText(c,maxW);});
       var totH=allW.reduce(function(s,w){return s+w.length*lineH+sz*0.25;},0)+sz*2;
       lastPage.drawRectangle({x:0,y:cy-totH-60,width:pW,height:totH+100,color:PDFLib.rgb(1,1,1)});
       allW.forEach(function(wrapped){
         if(cy<20)return;
-        lastPage.drawText('•  '+wrapped[0],{x:leftX,y:cy,size:sz,font:font,color:blue}); cy-=lineH;
-        for(var wi=1;wi<wrapped.length;wi++){if(cy<20)return;lastPage.drawText(wrapped[wi],{x:leftX+bulletW,y:cy,size:sz,font:font,color:blue});cy-=lineH;}
+        lastPage.drawText('•  '+wrapped[0],{x:leftX,y:cy,size:sz,font:font,color:blue});cy-=lineH;
+        for(var wi=1;wi<wrapped.length;wi++){if(cy<20)return;
+          lastPage.drawText(wrapped[wi],{x:leftX+bulletW,y:cy,size:sz,font:font,color:blue});cy-=lineH;}
         cy-=sz*0.25;
       });
     }
-    
     var out=await pdfDoc.save();
     var blob=new Blob([out],{type:'application/pdf'});
     var url=URL.createObjectURL(blob);
     var a=document.createElement('a');
-    a.href=url; a.download='Angebot'+(pdfProjNr?'-'+pdfProjNr:'')+(pdfProjBez?'-'+pdfProjBez:'')+'.pdf';
+    a.href=url;a.download='Angebot'+(pdfProjNr?'-'+pdfProjNr:'')+(pdfProjBez?'-'+pdfProjBez:'')+'.pdf';
     document.body.appendChild(a);a.click();document.body.removeChild(a);
     setTimeout(function(){URL.revokeObjectURL(url);},3000);
     showToast('PDF gespeichert ✓','ok');
   }catch(e){console.error(e);showToast('Fehler: '+e.message,'err');}
 }
-
-// INIT
 document.getElementById('logoImg').src=MORF_LOGO_B64;
 refreshCostDisplays();
 </script>

@@ -192,7 +192,9 @@ body{font-family:var(--font);font-size:13px;background:var(--bg);color:var(--tex
 .cond-manual:focus{border-color:var(--yellow)}
 .cond-preview{margin-top:8px;padding:8px;background:#f8f8f6;border:1px solid var(--border);
   border-radius:5px;font-size:11px;color:var(--muted);min-height:30px;max-height:120px;
-  overflow-y:auto;line-height:1.6}
+  overflow-y:auto;line-height:1.6;outline:none;cursor:text}
+.cond-preview:focus{border-color:var(--yellow);background:#fff}
+.cond-preview:empty:before{content:"Keine Bedingungen";color:var(--dim)}
 .cond-toggle{position:fixed;left:0;top:50%;transform:translateY(-50%);z-index:101;
   background:var(--yellow);color:var(--text);border:none;border-radius:0 6px 6px 0;
   padding:10px 7px;cursor:pointer;writing-mode:vertical-rl;
@@ -253,7 +255,7 @@ body{font-family:var(--font);font-size:13px;background:var(--bg);color:var(--tex
   </div>
   <span class="topbar-hint" id="topHint"></span>
   <div class="topbar-right" id="topRight">
-    <button class="btn btn-ghost" onclick="openSettings()">⚙ API-Key</button>
+    <button class="btn btn-ghost" id="hamburgerBtn" onclick="toggleHamburger()" style="font-size:16px;padding:6px 10px">☰</button>
   </div>
 </div>
 
@@ -322,7 +324,7 @@ body{font-family:var(--font);font-size:13px;background:var(--bg);color:var(--tex
   <div class="drop-screen">
     <div class="drop-card">
       <div class="eyebrow">LV-Offerte</div>
-      <div style="font-family:var(--mono);font-size:9px;color:var(--dim);margin-bottom:8px">Deploy: 12.04.2026 15:11</div>
+      <div style="font-family:var(--mono);font-size:9px;color:var(--dim);margin-bottom:8px">Deploy: 12.04.2026 15:18</div>
       <h1>Leistungsverzeichnis<br>ausfüllen</h1>
       <div class="drop-zone" id="dropZone"
         ondragover="event.preventDefault();this.classList.add('over')"
@@ -378,8 +380,8 @@ body{font-family:var(--font);font-size:13px;background:var(--bg);color:var(--tex
         <span class="cost-info-val" id="monthCostBar">CHF 0.00</span>
       </div>
       <div class="cost-actions">
-        <button class="btn-outline" onclick="runStandardParser()">⚡ Standard</button>
-        <button class="btn-yellow" id="claudeBtn" onclick="runClaudeParser()">✦ Claude analysieren</button>
+        
+        <button class="btn-yellow" id="claudeBtn" onclick="runClaudeParser()">✦ KI-Analyse</button>
       </div>
     </div>
   </div>
@@ -398,7 +400,7 @@ body{font-family:var(--font);font-size:13px;background:var(--bg);color:var(--tex
       <div style="font-size:10px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin-bottom:6px">Manuell</div>
       <textarea class="cond-manual" id="condManual" placeholder="Eigene Bedingung…" oninput="updateCondPreview()"></textarea>
       <div style="font-size:10px;color:var(--dim);margin:4px 0 6px">Vorschau:</div>
-      <div class="cond-preview" id="condPreview"></div>
+      <div class="cond-preview" id="condPreview" contenteditable="true" spellcheck="false" title="Text direkt bearbeitbar"></div>
     </div>
   </div>
   <div class="fill-body" id="fillBody">
@@ -411,6 +413,20 @@ body{font-family:var(--font);font-size:13px;background:var(--bg);color:var(--tex
 </div>
 
 <div class="toast" id="toast"></div>
+<div id="hamburgerMenu" style="display:none;position:fixed;top:52px;right:0;
+  background:var(--surface);border:1px solid var(--border);border-radius:0 0 0 10px;
+  box-shadow:-2px 4px 16px rgba(0,0,0,.12);z-index:400;min-width:180px;padding:6px 0">
+  <button onclick="openSettings();toggleHamburger()" style="width:100%;padding:10px 16px;
+    background:none;border:none;cursor:pointer;font-family:var(--font);font-size:12px;
+    color:var(--text);text-align:left;display:flex;align-items:center;gap:8px">
+    ⚙ API-Key
+  </button>
+  <button onclick="doLogout();toggleHamburger()" style="width:100%;padding:10px 16px;
+    background:none;border:none;cursor:pointer;font-family:var(--font);font-size:12px;
+    color:var(--red);text-align:left;display:flex;align-items:center;gap:8px">
+    ↩ Abmelden
+  </button>
+</div>
 <div class="progress-overlay" id="progressOverlay"><div class="progress-box"><div class="progress-title" id="progressTitle">Wird analysiert…</div><div class="progress-sub" id="progressSub"></div><div class="progress-bar-wrap"><div class="progress-bar-fill" id="progressFill"></div></div></div></div>
 
 <script>
@@ -761,6 +777,14 @@ function updateCondPreview(){
 }
 
 function getActiveConds(){
+  // Read directly from editable preview — user may have modified text
+  var preview=document.getElementById('condPreview');
+  if(preview && preview.textContent.trim()){
+    // Split on bullet points
+    return preview.textContent.split(/\n/).map(function(l){
+      return l.replace(/^[•\-\s]+/,'').trim();
+    }).filter(function(l){ return l.length>0; });
+  }
   var manual=document.getElementById('condManual')?document.getElementById('condManual').value.trim():'';
   var lines=activeConds.map(function(c){ return c.text; });
   if(manual) manual.split('\n').forEach(function(l){ if(l.trim()) lines.push(l.trim()); });
@@ -811,6 +835,19 @@ async function updateBedingung(id,titel,text){
   if(error){showToast('Fehler: '+error.message,'err');return;}
   showToast('Gespeichert ✓','ok');
   await loadBedingungen();
+}
+function toggleHamburger(){
+  var m=document.getElementById('hamburgerMenu');
+  if(m) m.style.display=m.style.display==='none'?'block':'none';
+  // Close on outside click
+  setTimeout(function(){
+    document.addEventListener('click',function handler(e){
+      if(!e.target.closest('#hamburgerMenu')&&!e.target.closest('#hamburgerBtn')){
+        var m2=document.getElementById('hamburgerMenu'); if(m2) m2.style.display='none';
+        document.removeEventListener('click',handler);
+      }
+    });
+  },0);
 }
 function toggleCond(){
   document.getElementById('condPanel').classList.toggle('open');
@@ -1042,7 +1079,7 @@ async function runClaudeParser(){
   } catch(e){
     hideProgress(); console.error(e); showToast('Fehler: '+e.message,'err');
   } finally{
-    if(btn){ btn.disabled=false; btn.textContent='\u2746 Claude analysieren'; }
+    if(btn){ btn.disabled=false; btn.textContent='\u2746 KI-Analyse'; }
   }
 }
 
@@ -1410,14 +1447,14 @@ function onLoggedIn(user){
   document.getElementById('topRight').innerHTML =
     '<span style="font-size:11px;color:var(--muted)">'+user.email+'</span>' +
     '<button class="btn btn-ghost" onclick="doLogout()" style="font-size:11px">Abmelden</button>' +
-    '<button class="btn btn-ghost" onclick="openSettings()">⚙ API-Key</button>';
+    '<button class="btn btn-ghost" id="hamburgerBtn" onclick="toggleHamburger()" style="font-size:16px;padding:6px 10px">☰</button>';
   showView('vDrop');
 }
 
 async function doLogout(){
   if(supabase) await supabase.auth.signOut();
   showView('vLogin');
-  document.getElementById('topRight').innerHTML = '<button class="btn btn-ghost" onclick="openSettings()">⚙ API-Key</button>';
+  document.getElementById('topRight').innerHTML = '<button class="btn btn-ghost" id="hamburgerBtn" onclick="toggleHamburger()" style="font-size:16px;padding:6px 10px">☰</button>';
 }
 
 // Check session on load

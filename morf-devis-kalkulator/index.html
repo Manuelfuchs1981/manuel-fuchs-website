@@ -248,7 +248,7 @@ body{font-family:var(--font);font-size:13px;background:var(--bg);color:var(--tex
   <div class="drop-screen">
     <div class="drop-card">
       <div class="eyebrow">LV-Offerte</div>
-      <div style="font-family:var(--mono);font-size:9px;color:var(--dim);margin-bottom:8px">Deploy: 12.04.2026 10:39</div>
+      <div style="font-family:var(--mono);font-size:9px;color:var(--dim);margin-bottom:8px">Deploy: 12.04.2026 10:43</div>
       <h1>Leistungsverzeichnis<br>ausfüllen</h1>
       <div class="drop-zone" id="dropZone"
         ondragover="event.preventDefault();this.classList.add('over')"
@@ -691,6 +691,18 @@ async function runClaudeParser(){
         for(var idx=0;idx<pdfRows.length;idx++){
           var row=pdfRows[idx];
           var cl=clRows[idx]||{pos:'p'+pi+'_'+idx,qty:0,unit:''};
+
+          // Parse qty/unit directly from PDF.js context text (more reliable than Claude)
+          var UNITS=['m\u00b2','m2','m(?!\\w)','St\\.?','gl\\.?','kg','LE','Stk\\.?','h(?!\\w)','pauschal'];
+          var qtyMatch=row.text.match(new RegExp('(\\d[\\d\\'.,]*)\\s+('+UNITS.join('|')+')\\b','i'));
+          if(qtyMatch){
+            var qtyParsed=parseFloat(qtyMatch[1].replace(/[',]/g,'').replace(',','.'));
+            var unitParsed=qtyMatch[2].replace(/m2/i,'m\u00b2').replace(/Stk\.?/i,'St').replace(/pauschal/i,'gl');
+            if(!isNaN(qtyParsed)&&qtyParsed>0){ cl.qty=qtyParsed; cl.unit=unitParsed; }
+          }
+          // "per LE" = open quantity
+          if(/\bper\b/i.test(row.text)) cl.qty=0;
+
           var canvasY=Math.round((pageH-row.y)*S)-rowH+2;
           var epBox={x:Math.round(row.ep.x*S),y:canvasY,w:Math.round(row.ep.w*S),h:rowH};
           var gpBox=row.gp?{x:Math.round(row.gp.x*S),y:canvasY,

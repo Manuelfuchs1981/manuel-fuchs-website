@@ -248,7 +248,7 @@ body{font-family:var(--font);font-size:13px;background:var(--bg);color:var(--tex
   <div class="drop-screen">
     <div class="drop-card">
       <div class="eyebrow">LV-Offerte</div>
-      <div style="font-family:var(--mono);font-size:9px;color:var(--dim);margin-bottom:8px">Deploy: 12.04.2026 11:07</div>
+      <div style="font-family:var(--mono);font-size:9px;color:var(--dim);margin-bottom:8px">Deploy: 12.04.2026 11:10</div>
       <h1>Leistungsverzeichnis<br>ausfüllen</h1>
       <div class="drop-zone" id="dropZone"
         ondragover="event.preventDefault();this.classList.add('over')"
@@ -624,16 +624,15 @@ async function runClaudeParser(){
         // Standard: dot items (.......)
         var dots=line.items.filter(function(it){ return /\.{4,}/.test(it.str)&&it.x>=dotThresholdX; });
 
-        // Alternative: SFr. / Fr. / CHF price label (formats without dotted lines)
+        // Alternative: SFr./Fr./CHF price label
         if(!dots.length){
           var priceLabel=line.items.filter(function(it){
             return /^(SFr\.?|Fr\.?|CHF)$/i.test(it.str.trim())&&it.x>=dotThresholdX;
           });
           if(priceLabel.length){
-            // Field starts AFTER "SFr." text, extends to right margin
             priceLabel.forEach(function(lbl){
-              var fieldX=lbl.x+(lbl.w||20)+3; // start after "SFr." text
-              var fieldW=Math.max(pageW*0.15, pageW-fieldX-5);
+              var fieldX=lbl.x+(lbl.w||18)+3;
+              var fieldW=Math.max(pageW*0.18, pageW-fieldX-5);
               dots.push({x:fieldX, y:lbl.y, w:fieldW, str:lbl.str, isSFr:true});
             });
           }
@@ -641,19 +640,25 @@ async function runClaudeParser(){
 
         if(!dots.length) return;
         dots.sort(function(a,b){ return a.x-b.x; });
-        var nonDots=line.items.filter(function(it){ return !/\.{4,}/.test(it.str)&&!/^(SFr\.?|Fr\.?|CHF)$/i.test(it.str.trim()); });
+        var nonDots=line.items.filter(function(it){
+          return !/\.{4,}/.test(it.str)&&!/^(SFr\.?|Fr\.?|CHF)$/i.test(it.str.trim());
+        });
         var txt=nonDots.map(function(it){ return it.str; }).join(' ').trim();
-        if(/\u00fcbertrag|zwischentotal|total\s*$/i.test(txt)){
+
+        // Skip Übertrag lines
+        if(/\u00fcbertrag|zwischentotal/i.test(txt)){
           uebertragRow={y:line.y,ep:dots[0],gp:dots.length>1?dots[dots.length-1]:null};
           return;
         }
-        // For SFr. format: only 1 field (EP), no GP
+        // Skip lines containing "Total" (e.g. "Total Bodenmarkierung")
+        if(/\btotal\b/i.test(txt)) return;
+
         var hasSFr=dots.some(function(d){ return d.isSFr; });
         pdfRows.push({
           y:line.y, text:txt,
           ep:dots[0],
           gp:(!hasSFr&&dots.length>1)?dots[dots.length-1]:null
-        });
+        })
       });
       console.log('[PDF.js] Page '+pi+': '+pdfRows.length+' price-rows'+(uebertragRow?' + Übertrag':''));
 

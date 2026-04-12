@@ -260,7 +260,7 @@ body{font-family:var(--font);font-size:13px;background:var(--bg);color:var(--tex
   <div class="drop-screen">
     <div class="drop-card">
       <div class="eyebrow">LV-Offerte</div>
-      <div style="font-family:var(--mono);font-size:9px;color:var(--dim);margin-bottom:8px">Deploy: 12.04.2026 13:49</div>
+      <div style="font-family:var(--mono);font-size:9px;color:var(--dim);margin-bottom:8px">Deploy: 12.04.2026 13:54</div>
       <h1>Leistungsverzeichnis<br>ausfüllen</h1>
       <div class="drop-zone" id="dropZone"
         ondragover="event.preventDefault();this.classList.add('over')"
@@ -397,7 +397,7 @@ pdfjsLib.GlobalWorkerOptions.workerSrc =
 
 // ── GLOBALS ───────────────────────────────────────────────────
 var pjsDoc        = null;
-var sourcePdfBuf  = null;
+var sourcePdfUrl  = null;  // Blob URL — can be fetched multiple times
 var currentFile   = '';
 var selectedPages = new Set();
 var parsedPos     = {};
@@ -474,10 +474,10 @@ function onFileInput(file){
   pdfProjNr=fnM?fnM[1]:''; pdfProjBez=fnM?fnM[2].replace(/_/g,' ').trim():'';
   var r=new FileReader();
   r.onload=async function(ev){
-    var rawBytes=new Uint8Array(ev.target.result);
-    sourcePdfBuf=rawBytes.slice(0);    // Uint8Array — independent buffer for pdf-lib
-    var pjsBytes=rawBytes.slice(0);    // another independent copy for PDF.js
-    pjsDoc=await pdfjsLib.getDocument({data:pjsBytes}).promise;
+    var pdfBlob=new Blob([ev.target.result],{type:'application/pdf'});
+    if(sourcePdfUrl) URL.revokeObjectURL(sourcePdfUrl);
+    sourcePdfUrl=URL.createObjectURL(pdfBlob);  // Blob URL — reliable, re-fetchable
+    pjsDoc=await pdfjsLib.getDocument(sourcePdfUrl).promise;
     showPageSelector();
   };
   r.readAsArrayBuffer(file);
@@ -986,11 +986,13 @@ function fmtN(n){
 }
 
 async function savePdf(){
-  if(!sourcePdfBuf||typeof PDFLib==='undefined'){showToast('PDF nicht bereit','err');return;}
+  if(!sourcePdfUrl||typeof PDFLib==='undefined'){showToast('PDF nicht bereit','err');return;}
   showToast('PDF wird erstellt…','info');
   try{
     // Load main PDF
-    var mainDoc=await PDFLib.PDFDocument.load(sourcePdfBuf.slice(0),{ignoreEncryption:true});
+    var pdfResp=await fetch(sourcePdfUrl);
+    var pdfBuf=await pdfResp.arrayBuffer();
+    var mainDoc=await PDFLib.PDFDocument.load(pdfBuf,{ignoreEncryption:true});
     var font=await mainDoc.embedFont(PDFLib.StandardFonts.Helvetica);
     var fontB=await mainDoc.embedFont(PDFLib.StandardFonts.HelveticaBold);
     var pages=mainDoc.getPages();
@@ -1087,7 +1089,7 @@ async function savePdf(){
 
     drawRow('Bruttopreis','CHF '+fCH(brutto),false,true);
     if(rabattPct>0){
-      drawRow('Rabatt '+rabattPct+'%','− CHF '+fCH(rabattBetrag),false,true);
+      drawRow('Rabatt '+rabattPct+'%','- CHF '+fCH(rabattBetrag),false,true);
       drawRow('Nettopreis vor MWST','CHF '+fCH(nettoBrutto),false,true);
     }
     drawRow('MWST 8.1%','CHF '+fCH(mwst),false,true);

@@ -249,7 +249,7 @@ body{font-family:var(--font);font-size:13px;background:var(--bg);color:var(--tex
   <div class="drop-screen">
     <div class="drop-card">
       <div class="eyebrow">LV-Offerte</div>
-      <div style="font-family:var(--mono);font-size:9px;color:var(--dim);margin-bottom:8px">Deploy: 12.04.2026 10:23</div>
+      <div style="font-family:var(--mono);font-size:9px;color:var(--dim);margin-bottom:8px">Deploy: 12.04.2026 10:29</div>
       <h1>Leistungsverzeichnis<br>ausfüllen</h1>
       <div class="drop-zone" id="dropZone"
         ondragover="event.preventDefault();this.classList.add('over')"
@@ -546,11 +546,26 @@ async function runClaudeParser(){
       // Only count dots in the RIGHT portion of page (price columns, not description text)
       // "Weiteres ............" etc. appear left of center → filter them out
       var dotThresholdX = pageW * 0.55; // dots must start past 55% of page width
+      var uebertragRow = null; // special: page subtotal line
       var pdfRows=[];
       lines.forEach(function(line){
         var dots=line.items.filter(function(it){
           return /\.{4,}/.test(it.str) && it.x >= dotThresholdX;
         });
+        if(!dots.length) return;
+        dots.sort(function(a,b){ return a.x-b.x; });
+        var nonDots=line.items.filter(function(it){ return !/\.{4,}/.test(it.str); });
+        var txt=nonDots.map(function(it){ return it.str; }).join(' ').trim();
+
+        // Detect Übertrag / Zwischentotal lines → handle separately as page total
+        if(/\u00fcbertrag|zwischentotal|total\s*$/i.test(txt)){
+          uebertragRow={y:line.y, ep:dots[0], gp:dots.length>1?dots[dots.length-1]:null};
+          return; // skip from regular price rows
+        }
+
+        pdfRows.push({y:line.y, text:txt, ep:dots[0],
+          gp:dots.length>1 ? dots[dots.length-1] : null});
+      });
         if(!dots.length) return;
         dots.sort(function(a,b){ return a.x-b.x; });
         var nonDots=line.items.filter(function(it){ return !/\.{4,}/.test(it.str); });
@@ -662,7 +677,30 @@ async function runClaudeParser(){
             'ep=['+epBox.x+','+epBox.y+','+epBox.w+']');
         }
       }
-    }
+
+      // ── 7. Übertrag: place read-only auto-sum field ────────────
+      if(uebertragRow){
+        var ur=uebertragRow;
+        var uCanvasY=Math.round((pageH-ur.y)*S)-rowH+2;
+        // Only GP column (sum of all GP on this page)
+        var uGpBox=ur.gp ? {
+          x:Math.round(ur.gp.x*S), y:uCanvasY,
+          w:Math.min(Math.round(ur.gp.w*S), canvas.width-Math.round(ur.gp.x*S)-2),
+          h:rowH
+        } : null;
+        if(uGpBox){
+          var uEl=makeField('uebertrag_p'+pi,'gp',uGpBox);
+          uEl.readOnly=true; uEl.tabIndex=-1;
+          uEl.style.fontWeight='600';
+          uEl.title='\u00dcbertrag (Seitensumme)';
+          uEl.dataset.uebertrag=pi; // mark for auto-update
+          overlay.appendChild(uEl);
+          // Store reference
+          if(!window._uebertragEls) window._uebertragEls={};
+          window._uebertragEls[pi]=uEl;
+          console.log('[Übertrag] Page '+pi+' at y='+ur.y.toFixed(1));
+        }
+      }
     showToast('\u2713 '+Object.keys(parsedPos).length+' Positionen erkannt','ok');
   } catch(e){
     console.error(e); showToast('Fehler: '+e.message,'err');
@@ -749,6 +787,7 @@ function placeField(key,overlay,p){
         pp.ep=0;pp.status='price';this.className='fill-field';
         if(gpEl){gpEl.value='';gpEl.className='fill-field gp';}
       }
+      updateUebertrag(pp.pageIdx);
     }
   });
   ep.addEventListener('focus',function(){
@@ -782,6 +821,17 @@ function placeField(key,overlay,p){
     del.remove();delete parsedPos[key];
   });
   overlay.appendChild(del);
+}
+
+function updateUebertrag(pageIdx){
+  if(!window._uebertragEls||!window._uebertragEls[pageIdx]) return;
+  var sum=0;
+  Object.values(parsedPos).forEach(function(p){
+    if(p.pageIdx===pageIdx&&p.ep>0&&p.qty>0&&p.status==='price') sum+=p.ep*p.qty;
+  });
+  var el=window._uebertragEls[pageIdx];
+  el.value=sum>0?fmtN(sum):'';
+  el.className='fill-field gp'+(sum>0?' filled':'');
 }
 
 function makeField(key,type,box){

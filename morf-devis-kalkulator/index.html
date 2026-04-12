@@ -227,18 +227,11 @@ body{font-family:var(--font);font-size:13px;background:var(--bg);color:var(--tex
 .cond-drag-handle{background:none;border:none;cursor:grab;color:var(--dim);
   font-size:13px;padding:0 4px 0 0;opacity:.35;flex-shrink:0;user-select:none}
 .cond-drag-handle:hover{opacity:.8;cursor:grab}
-.cond-sort-divider{font-size:9px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;
-  color:var(--muted);padding:8px 0 3px 0;border-top:1px solid var(--border);margin-top:4px}
-.cond-sort-divider:first-child{border-top:none;margin-top:0;padding-top:0}
-.cond-flat-item{display:flex;align-items:center;gap:6px;padding:5px 8px;
-  background:var(--surface);border:1px solid var(--border);border-radius:6px;
-  margin-bottom:4px;cursor:grab;font-size:11px;color:var(--text)}
-.cond-flat-item.dragging{opacity:.3;background:#fff8cc}
-.cond-flat-item.drag-over{border-color:var(--yellow);border-top:2px solid var(--yellow)}
-.sort-mode-btn{width:100%;padding:6px 10px;background:none;border:1.5px solid var(--border2);
-  border-radius:6px;cursor:pointer;font-family:var(--font);font-size:11px;color:var(--muted);
-  margin-top:8px;text-align:center}
-.sort-mode-btn.active{background:var(--yellow-bg);border-color:var(--yellow);color:#927200;font-weight:600}
+.cond-flat-item{display:flex;align-items:center;gap:8px;padding:8px 10px;
+  background:var(--surface);border:1.5px solid var(--border);border-radius:7px;
+  margin-bottom:5px;cursor:grab;user-select:none;font-size:11px;color:var(--text)}
+.cond-flat-item:hover{border-color:var(--border2)}
+.cond-flat-item.drag-over{border-top:2px solid var(--yellow);border-color:var(--yellow)}
 .cond-item.dragging{opacity:.35;background:#fff8cc}
 .cond-item.drag-over{border-top:2px solid var(--yellow)}
 .cond-edit-form{background:#fff8cc;border:1px solid var(--yellow);border-radius:7px;
@@ -341,7 +334,7 @@ body{font-family:var(--font);font-size:13px;background:var(--bg);color:var(--tex
   <div class="drop-screen">
     <div class="drop-card">
       <div class="eyebrow">LV-Offerte</div>
-      <div style="font-family:var(--mono);font-size:9px;color:var(--dim);margin-bottom:8px">Deploy: 12.04.2026 15:52</div>
+      <div style="font-family:var(--mono);font-size:9px;color:var(--dim);margin-bottom:8px">Deploy: 12.04.2026 15:55</div>
       <h1>Leistungsverzeichnis<br>ausfüllen</h1>
       <div class="drop-zone" id="dropZone"
         ondragover="event.preventDefault();this.classList.add('over')"
@@ -757,11 +750,11 @@ function buildCondPanel(){
   });
 
   // Add new condition button
-  // Sort mode toggle button
-  var sortBtn=document.createElement('button'); sortBtn.className='sort-mode-btn';
-  sortBtn.textContent='⇅ Reihenfolge ändern';
-  sortBtn.onclick=toggleSortMode;
-  cats.appendChild(sortBtn);
+  var sortModeBtn=document.createElement('button');
+  sortModeBtn.style.cssText='width:100%;padding:6px 10px;background:none;border:1.5px solid var(--border2);border-radius:6px;cursor:pointer;font-family:var(--font);font-size:11px;color:var(--muted);margin-top:8px;text-align:center';
+  sortModeBtn.textContent='⇅ Reihenfolge ändern ('+(activeConds.length)+' ausgewählt)';
+  sortModeBtn.addEventListener('click',toggleSortMode);
+  cats.appendChild(sortModeBtn);
 
   var addBtn=document.createElement('button'); addBtn.className='cond-add-btn';
   addBtn.innerHTML='+ Neue Bedingung hinzufügen';
@@ -809,11 +802,11 @@ function updateCondPreview(){
 }
 
 function getActiveConds(){
-  // activeConds is authoritative (set by checkboxes)
-  // Sync any manual edits from preview back into activeConds
+  // activeConds is authoritative. Sync manual preview edits back first.
   var preview=document.getElementById('condPreview');
   if(preview && preview.innerText.trim() && activeConds.length>0){
-    var lines=preview.innerText.split(/\n/).map(function(l){
+    var lines=preview.innerText.split(/
+/).map(function(l){
       return l.replace(/^[•\-\s]+/,'').trim();
     }).filter(function(l){return l.length>0;});
     if(lines.length===activeConds.length){
@@ -931,8 +924,8 @@ function toggleHamburger(){
     });
   },0);
 }
-// ── SORT MODE (flat reorderable list) ─────────────────────────
-var _sortMode=false, _sortDragSrc=null;
+// ── SORT MODE ─────────────────────────────────────────────────
+var _sortMode=false;
 
 function toggleSortMode(){
   _sortMode=!_sortMode;
@@ -943,17 +936,15 @@ function buildSortModePanel(){
   var el=document.getElementById('condCats');
   el.innerHTML='';
 
-  // Only checked conditions
-  var checked=activeConds.slice(); // copy of checked conditions in current order
-  
-  // Exit button at TOP so it's always visible
-  var exitBtn=document.createElement('button');
-  exitBtn.textContent='← Zurück';
-  exitBtn.style.cssText='width:100%;padding:8px;background:var(--text);color:#fff;border:none;border-radius:7px;font-family:var(--font);font-size:12px;font-weight:600;cursor:pointer;margin-bottom:10px';
-  exitBtn.onclick=function(){ _sortMode=false; buildCondPanel(); };
-  el.appendChild(exitBtn);
+  // Back button — always first
+  var back=document.createElement('button');
+  back.textContent='← Zurück';
+  back.style.cssText='width:100%;padding:8px;background:var(--text);color:#fff;border:none;'+
+    'border-radius:7px;font-family:var(--font);font-size:12px;font-weight:600;cursor:pointer;margin-bottom:10px';
+  back.addEventListener('click',function(){ _sortMode=false; buildCondPanel(); });
+  el.appendChild(back);
 
-  if(checked.length===0){
+  if(activeConds.length===0){
     var msg=document.createElement('div');
     msg.style.cssText='text-align:center;color:var(--muted);font-size:11px;padding:16px';
     msg.textContent='Keine Bedingungen ausgewählt';
@@ -962,79 +953,72 @@ function buildSortModePanel(){
   }
 
   var hint=document.createElement('div');
-  hint.style.cssText='font-size:10px;color:var(--muted);padding:6px 8px;background:#fffbe6;border-radius:6px;border:1px solid #e8c800;margin-bottom:8px';
-  hint.textContent='⇅ Ziehen zum Umordnen — '+checked.length+' Bedingung'+(checked.length===1?'':'en')+' ausgewählt';
+  hint.style.cssText='font-size:10px;color:var(--muted);padding:6px 8px;background:#fffbe6;'+
+    'border-radius:6px;border:1px solid #e8c800;margin-bottom:8px';
+  hint.textContent='⇅ Zeilen ziehen um Reihenfolge ändern — '+
+    activeConds.length+' ausgewählt';
   el.appendChild(hint);
 
-  // Build draggable flat list
-  var list=document.createElement('div'); list.id='sortList';
-  el.appendChild(list);
+  function renderRows(){
+    // Remove old rows
+    el.querySelectorAll('.cond-flat-item').forEach(function(r){r.remove();});
+    var dragSrc=null;
 
-  function renderList(){
-    list.innerHTML='';
     activeConds.forEach(function(entry,i){
       var row=document.createElement('div');
-      row.style.cssText='display:flex;align-items:center;gap:8px;padding:8px 10px;'+
-        'background:var(--surface);border:1.5px solid var(--border);border-radius:7px;'+
-        'margin-bottom:5px;cursor:grab;user-select:none;font-size:11px;color:var(--text)';
-      row.draggable=true;
-      row.dataset.i=String(i);
+      row.className='cond-flat-item';
 
       var grip=document.createElement('span');
-      grip.textContent='⠇'; grip.style.cssText='opacity:.4;font-size:14px;flex-shrink:0';
+      grip.textContent='⠇';
+      grip.style.cssText='opacity:.35;font-size:14px;flex-shrink:0;pointer-events:none';
 
       var lbl=document.createElement('span');
-      lbl.textContent=entry.title||entry.text.slice(0,60);
-      lbl.style.cssText='flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap';
+      lbl.textContent=(entry.title||entry.text).slice(0,70);
+      lbl.style.cssText='flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;pointer-events:none';
 
-      row.appendChild(grip); row.appendChild(lbl);
-      list.appendChild(row);
+      row.appendChild(grip);
+      row.appendChild(lbl);
+      el.appendChild(row);
 
-      // Native drag events
-      row.addEventListener('dragstart',function(e){
-        e.dataTransfer.effectAllowed='move';
-        e.dataTransfer.setData('text/plain',String(i));
+      row.draggable=true;
+
+      row.addEventListener('dragstart',function(ev){
+        dragSrc=i;
+        ev.dataTransfer.effectAllowed='move';
+        ev.dataTransfer.setData('text/plain',String(i));
         row.style.opacity='.3';
-        row.style.background='#fff8cc';
       });
       row.addEventListener('dragend',function(){
-        row.style.opacity=''; row.style.background='';
-        list.querySelectorAll('div').forEach(function(r){
-          r.style.borderTop='';
+        row.style.opacity='';
+        el.querySelectorAll('.cond-flat-item').forEach(function(r){
+          r.style.borderTop='';r.style.borderColor='';
         });
       });
-      row.addEventListener('dragover',function(e){
-        e.preventDefault(); e.dataTransfer.dropEffect='move';
-        list.querySelectorAll('div').forEach(function(r){r.style.borderTop='';});
-        row.style.borderTop='2px solid var(--yellow)';
+      row.addEventListener('dragover',function(ev){
+        ev.preventDefault();
+        el.querySelectorAll('.cond-flat-item').forEach(function(r){
+          r.style.borderTop='';r.style.borderColor='';
+        });
+        if(dragSrc!==null&&dragSrc!==i){
+          row.style.borderTop='2px solid var(--yellow)';
+          row.style.borderColor='var(--yellow)';
+        }
       });
-      row.addEventListener('dragleave',function(){
-        row.style.borderTop='';
-      });
-      row.addEventListener('drop',function(e){
-        e.preventDefault();
-        row.style.borderTop='';
-        var srcI=parseInt(e.dataTransfer.getData('text/plain'));
-        var dstI=i;
-        if(srcI===dstI) return;
-        var moved=activeConds.splice(srcI,1)[0];
-        var newDst=srcI<dstI?dstI-1:dstI;
-        activeConds.splice(newDst,0,moved);
+      row.addEventListener('drop',function(ev){
+        ev.preventDefault();
+        row.style.borderTop='';row.style.borderColor='';
+        var src=parseInt(ev.dataTransfer.getData('text/plain'));
+        if(isNaN(src)||src===i) return;
+        var moved=activeConds.splice(src,1)[0];
+        var dst=src<i?i-1:i;
+        activeConds.splice(dst,0,moved);
         updateCondPreview();
-        renderList();
+        renderRows();
       });
     });
   }
 
-  renderList();
-}
-
-
-;
-    if(b.id===movedId&&newKat) upd.kategorie=newKat;
-    return supabase.from('bedingungen').update(upd).eq('id',b.id);
-  });
-  await Promise.all(promises);
+  renderRows();
 }
 
 function toggleCond(){

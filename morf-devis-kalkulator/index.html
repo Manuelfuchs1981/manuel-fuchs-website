@@ -249,7 +249,7 @@ body{font-family:var(--font);font-size:13px;background:var(--bg);color:var(--tex
   <div class="drop-screen">
     <div class="drop-card">
       <div class="eyebrow">LV-Offerte</div>
-      <div style="font-family:var(--mono);font-size:9px;color:var(--dim);margin-bottom:8px">Deploy: 12.04.2026 13:13</div>
+      <div style="font-family:var(--mono);font-size:9px;color:var(--dim);margin-bottom:8px">Deploy: 12.04.2026 13:20</div>
       <h1>Leistungsverzeichnis<br>ausfüllen</h1>
       <div class="drop-zone" id="dropZone"
         ondragover="event.preventDefault();this.classList.add('over')"
@@ -670,9 +670,17 @@ async function runClaudeParser(){
           });
           if(priceLabel.length){
             priceLabel.forEach(function(lbl){
-              var fieldX=lbl.x+(lbl.w||18)+3;
-              var fieldW=Math.max(pageW*0.18,pageW-fieldX-5);
-              dots.push({x:fieldX,y:lbl.y,w:fieldW,str:lbl.str,isSFr:true});
+              // Intelligently split available white space right of SFr. into EP + GP
+              var sfrRight=lbl.x+(lbl.w||18);
+              var rightMargin=pageW-12; // 12 PDF-pts from right edge
+              var avail=rightMargin-sfrRight-8; // total space minus gaps
+              var halfW=Math.max(avail/2-3, 28); // min 28 PDF-pts per field
+              var epX=sfrRight+4;
+              var epW=halfW;
+              var gpX=epX+halfW+6;
+              var gpW=Math.max(rightMargin-gpX, 28);
+              dots.push({x:epX, y:lbl.y, w:epW, str:lbl.str, isSFr:true});
+              dots.push({x:gpX, y:lbl.y, w:gpW, str:lbl.str+'_gp', isSFr:true});
             });
           }
         }
@@ -687,8 +695,7 @@ async function runClaudeParser(){
           return;
         }
         if(/\btotal\b/i.test(txt)) return;
-        var hasSFr=dots.some(function(d){ return d.isSFr; });
-        pdfRows.push({y:line.y,text:txt,ep:dots[0],gp:(!hasSFr&&dots.length>1)?dots[dots.length-1]:null});
+        pdfRows.push({y:line.y,text:txt,ep:dots[0],gp:dots.length>1?dots[dots.length-1]:null});
       });
       console.log('[PDF.js] Page '+pi+': '+pdfRows.length+' price-rows'+(uebertragRow?' + \u00dcbertrag':''));
 

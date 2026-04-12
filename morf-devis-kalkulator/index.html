@@ -248,7 +248,7 @@ body{font-family:var(--font);font-size:13px;background:var(--bg);color:var(--tex
   <div class="drop-screen">
     <div class="drop-card">
       <div class="eyebrow">LV-Offerte</div>
-      <div style="font-family:var(--mono);font-size:9px;color:var(--dim);margin-bottom:8px">Deploy: 12.04.2026 11:23</div>
+      <div style="font-family:var(--mono);font-size:9px;color:var(--dim);margin-bottom:8px">Deploy: 12.04.2026 12:55</div>
       <h1>Leistungsverzeichnis<br>ausfüllen</h1>
       <div class="drop-zone" id="dropZone"
         ondragover="event.preventDefault();this.classList.add('over')"
@@ -341,6 +341,8 @@ body{font-family:var(--font);font-size:13px;background:var(--bg);color:var(--tex
 <script>
 pdfjsLib.GlobalWorkerOptions.workerSrc =
   'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+var RENDER_SCALE = 1.5;
+var THUMB_SCALE  = 0.22;
 var MORF_LOGO_B64 = 'data:image/webp;base64,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';
 var PROJ_FILIALE = {
   '121': {code:'FZH', name:'Filiale Zürich',        ort:'Oberglatt'},
@@ -378,8 +380,6 @@ var COND_CATS = {
 pdfjsLib.GlobalWorkerOptions.workerSrc =
   'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
-var RENDER_SCALE = 1.5;
-var THUMB_SCALE  = 0.22;
 
 // ── GLOBALS ───────────────────────────────────────────────────
 var pjsDoc        = null;
@@ -450,9 +450,8 @@ function onFileInput(file){
   pdfProjNr=fnM?fnM[1]:''; pdfProjBez=fnM?fnM[2].replace(/_/g,' ').trim():'';
   var r=new FileReader();
   r.onload=async function(ev){
-    sourcePdfBuf=ev.target.result.slice(0);  // kept for pdf-lib export
-    var pjsData=new Uint8Array(ev.target.result.slice(0)); // separate copy for PDF.js
-    pjsDoc=await pdfjsLib.getDocument({data:pjsData}).promise;
+    sourcePdfBuf=ev.target.result.slice(0);
+    pjsDoc=await pdfjsLib.getDocument({data:new Uint8Array(sourcePdfBuf)}).promise;
     showPageSelector();
   };
   r.readAsArrayBuffer(file);
@@ -616,54 +615,40 @@ async function runClaudeParser(){
       });
       var lines=Object.values(lineMap).sort(function(a,b){ return b.y-a.y; });
 
-      // Find price rows: dot items OR "SFr."/"Fr."/"CHF" labels right of 55% page width
+      // Detect price rows: dots right of 55%, or SFr./Fr./CHF items right of 55%
       var dotThresholdX=pageW*0.55;
       var uebertragRow=null;
       var pdfRows=[];
       lines.forEach(function(line){
-        // Standard: dot items (.......)
         var dots=line.items.filter(function(it){ return /\.{4,}/.test(it.str)&&it.x>=dotThresholdX; });
-
-        // Alternative: SFr./Fr./CHF price label
         if(!dots.length){
           var priceLabel=line.items.filter(function(it){
             return /SFr\.?|Fr\.|CHF/i.test(it.str)&&it.x>=dotThresholdX;
           });
           if(priceLabel.length){
             priceLabel.forEach(function(lbl){
-              // Field starts after the right edge of the item containing SFr.
-              var fieldX=(lbl.x+(lbl.w||30))+3;
-              var fieldW=Math.max(pageW*0.18, pageW-fieldX-5);
-              dots.push({x:fieldX, y:lbl.y, w:fieldW, str:lbl.str, isSFr:true});
+              var fieldX=lbl.x+(lbl.w||18)+3;
+              var fieldW=Math.max(pageW*0.18,pageW-fieldX-5);
+              dots.push({x:fieldX,y:lbl.y,w:fieldW,str:lbl.str,isSFr:true});
             });
           }
         }
-
         if(!dots.length) return;
         dots.sort(function(a,b){ return a.x-b.x; });
         var nonDots=line.items.filter(function(it){
-          return !/\.{4,}/.test(it.str)&&!/^(SFr\.?|Fr\.?|CHF)$/i.test(it.str.trim());
+          return !/\.{4,}/.test(it.str)&&!/SFr\.?|Fr\.|CHF/i.test(it.str);
         });
         var txt=nonDots.map(function(it){ return it.str; }).join(' ').trim();
-
-        // Skip Übertrag lines
         if(/\u00fcbertrag|zwischentotal/i.test(txt)){
           uebertragRow={y:line.y,ep:dots[0],gp:dots.length>1?dots[dots.length-1]:null};
           return;
         }
-        // Skip lines containing "Total" (e.g. "Total Bodenmarkierung")
         if(/\btotal\b/i.test(txt)) return;
-
         var hasSFr=dots.some(function(d){ return d.isSFr; });
-        pdfRows.push({
-          y:line.y, text:txt,
-          ep:dots[0],
-          gp:(!hasSFr&&dots.length>1)?dots[dots.length-1]:null
-        })
+        pdfRows.push({y:line.y,text:txt,ep:dots[0],gp:(!hasSFr&&dots.length>1)?dots[dots.length-1]:null});
       });
-      console.log('[PDF.js] Page '+pi+': '+pdfRows.length+' price-rows'+(uebertragRow?' + Übertrag':''));
+      console.log('[PDF.js] Page '+pi+': '+pdfRows.length+' price-rows'+(uebertragRow?' + \u00dcbertrag':''));
 
-      // Render page
       var vp=page.getViewport({scale:RENDER_SCALE});
       var canvas=document.createElement('canvas');
       canvas.width=vp.width; canvas.height=vp.height;
@@ -677,7 +662,6 @@ async function runClaudeParser(){
       wrap.appendChild(canvas); wrap.appendChild(overlay);
       document.getElementById('fillPages').appendChild(wrap);
 
-      // Claude: label rows
       var clRows=await askClaude(canvas,pdfRows);
       trackCost(0.008);
       console.log('[Claude] Page '+pi+':',JSON.stringify(clRows));
@@ -686,14 +670,12 @@ async function runClaudeParser(){
       var rowH=Math.round(13*S);
 
       if(pdfRows.length===0){
-        // No dots found: use Claude's line_id to find exact Y from PDF.js text,
-        // then place field right of the rightmost text item on that line
+        // No dots: use Claude's line_id to find exact Y from PDF.js text,
+        // then place field right of rightmost text item on that line
         var usedLineYs=[];
         clRows.forEach(function(cl){
           var lineId=(cl.line_id||'').trim();
           var matchLine=null, bestScore=0;
-
-          // Search PDF.js lines for line_id text
           if(lineId){
             lines.forEach(function(line){
               if(usedLineYs.some(function(y){ return Math.abs(y-line.y)<3; })) return;
@@ -703,7 +685,6 @@ async function runClaudeParser(){
                 if(score>bestScore){ bestScore=score; matchLine=line; }
               }
             });
-            // Also try matching individual words of line_id
             if(!matchLine){
               var words=lineId.split(/\s+/).filter(function(w){ return w.length>1; });
               lines.forEach(function(line){
@@ -717,48 +698,38 @@ async function runClaudeParser(){
               });
             }
           }
-
-          if(!matchLine) return; // no match — skip this row
+          if(!matchLine) return;
           usedLineYs.push(matchLine.y);
-
           var exactY=matchLine.y;
-
-          // Rightmost item on this line (right half of page preferred)
           var rightItems=matchLine.items.filter(function(it){ return it.x>=pageW*0.4; });
           if(!rightItems.length) rightItems=matchLine.items;
           var rightmost=rightItems.reduce(function(best,it){
             return (it.x+(it.w||0))>(best.x+(best.w||0))?it:best;
           });
-
           var fieldX=rightmost.x+(rightmost.w||0)+5;
           var fieldW=pageW-fieldX-5;
           if(fieldW<30){ fieldX=pageW*0.62; fieldW=pageW*0.33; }
-
           var canvasY=Math.round((pageH-exactY)*S)-rowH+2;
           var epBox={x:Math.round(fieldX*S),y:canvasY,w:Math.round(Math.min(fieldW,pageW-fieldX-2)*S),h:rowH};
-
           var key=cl.pos||('p'+pi+'_'+Math.round(exactY));
           if(parsedPos[key]) key+='_b';
           parsedPos[key]={pos:cl.pos||key,qty:cl.qty||0,unit:cl.unit||'',
-            ep:0,status:'price',pageIdx:pi,canvasW:canvas.width,canvasH:canvas.height,
-            epBox:epBox,gpBox:null};
+            ep:0,status:'price',pageIdx:pi,canvasW:canvas.width,canvasH:canvas.height,epBox:epBox,gpBox:null};
           placeField(key,overlay,parsedPos[key]);
-        })
+        });
       } else {
         for(var idx=0;idx<pdfRows.length;idx++){
           var row=pdfRows[idx];
           var cl=clRows[idx]||{pos:'p'+pi+'_'+idx,qty:0,unit:''};
-
-          // Parse qty/unit directly from PDF.js context text (more reliable than Claude)
-          var unitPat='(m\\u00b2|m2|m(?!\\w)|St\\.?|gl\\.?|kg|LE|Stk\\.?|h(?!\\w)|pauschal)';
+          // Parse qty/unit from PDF.js text (more reliable than Claude)
+          var unitPat='(m\u00b2|m2|m(?!\\w)|St\\.?|gl\\.?|kg|LE|Stk\\.?|h(?!\\w)|pauschal)';
           var qtyMatch=row.text.match(new RegExp('([0-9][0-9 ,.]*?)\\s+'+unitPat,'i'));
           if(qtyMatch){
             var qtyParsed=parseFloat(qtyMatch[1].replace(/[, ]/g,'').replace(',','.'));
-            var unitParsed=qtyMatch[2].replace(/m2/i,'m\u00b2').replace(/Stk\.?/i,'St').replace(/pauschal/i,'gl');
+            var unitParsed=qtyMatch[2].replace(/m2/i,'m\u00b2').replace(/Stk\.?/i,'St');
             if(!isNaN(qtyParsed)&&qtyParsed>0){ cl.qty=qtyParsed; cl.unit=unitParsed; }
           }
           if(/\bper\b/i.test(row.text)) cl.qty=0;
-
           var canvasY=Math.round((pageH-row.y)*S)-rowH+2;
           var epBox={x:Math.round(row.ep.x*S),y:canvasY,w:Math.round(row.ep.w*S),h:rowH};
           var gpBox=row.gp?{x:Math.round(row.gp.x*S),y:canvasY,
@@ -771,20 +742,18 @@ async function runClaudeParser(){
         }
       }
 
-      // Übertrag field (auto-sum)
+      // Übertrag: auto-sum field
       if(uebertragRow){
         var ur=uebertragRow;
         var uCanvasY=Math.round((pageH-ur.y)*S)-rowH+2;
         var uDot=ur.gp||ur.ep;
-        var uGpBox={x:Math.round(uDot.x*S),y:uCanvasY,w:Math.min(Math.round(uDot.w*S),canvas.width-Math.round(uDot.x*S)-2),h:rowH};
-        if(true){
-          var uEl=makeField('uebertrag_p'+pi,'gp',uGpBox);
-          uEl.readOnly=true; uEl.tabIndex=-1; uEl.style.fontWeight='600';
-          uEl.title='\u00dcbertrag';
-          overlay.appendChild(uEl);
-          window._uebertragEls[pi]=uEl;
-          console.log('[Übertrag] Page '+pi+' y='+ur.y.toFixed(1));
-        }
+        var uGpBox={x:Math.round(uDot.x*S),y:uCanvasY,
+          w:Math.min(Math.round(uDot.w*S),canvas.width-Math.round(uDot.x*S)-2),h:rowH};
+        var uEl=makeField('uebertrag_p'+pi,'gp',uGpBox);
+        uEl.readOnly=true; uEl.tabIndex=-1; uEl.style.fontWeight='600';
+        uEl.title='\u00dcbertrag (Seitensumme)';
+        overlay.appendChild(uEl);
+        window._uebertragEls[pi]=uEl;
       }
     }
     showToast('\u2713 '+Object.keys(parsedPos).length+' Positionen erkannt','ok');
@@ -799,12 +768,11 @@ async function askClaude(canvas,pdfRows){
   var b64=canvas.toDataURL('image/jpeg',0.88).split(',')[1];
   var prompt;
   if(pdfRows.length>0){
-    // PDF.js already found the price rows — Claude only needs to read pos/qty/unit from each
     var rowList=pdfRows.map(function(r,i){
-      return (i+1)+'. "'+r.text.slice(0,60)+'"'+(r.ep&&r.ep.isSFr?' [SFr.-format: EP only, no GP]':'');
+      return (i+1)+'. "'+r.text.slice(0,60)+'"'+(r.ep&&r.ep.isSFr?' [SFr.-format]':'');
     }).join('\n');
     prompt='This is a Swiss NPK construction price list.\n\n'
-      +'The following '+pdfRows.length+' price row(s) were detected top-to-bottom (by dotted lines or SFr. markers):\n'
+      +'The following '+pdfRows.length+' price row(s) were detected top-to-bottom:\n'
       +rowList+'\n\n'
       +'For each row, in the same order, return:\n'
       +'- pos: position number as printed (e.g. "181>083", "30,00", "R .101")\n'
@@ -813,7 +781,6 @@ async function askClaude(canvas,pdfRows){
       +'Return ONLY a JSON array with exactly '+pdfRows.length+' entries:\n'
       +'[{"pos":"181>083","qty":4,"unit":"St"},{"pos":"181>084","qty":0,"unit":"m"},...]';
   } else {
-    // No structural markers found — Claude must locate and identify price rows visually
     prompt='This is a Swiss NPK construction price list. No dotted lines were found automatically.\n\n'
       +'Find every row where a unit price must be entered.\n'
       +'For each price row return:\n'
@@ -822,33 +789,114 @@ async function askClaude(canvas,pdfRows){
       +'- unit: unit (St, Stk, m, m2, LE, gl, kg, h, pauschal)\n'
       +'- line_id: the EXACT quantity+unit text as it appears on the price row\n'
       +'  Examples: "1 gl", "168 m\u00b9", "33 Stk.", "per", "2 Stk."\n'
-      +'  Must be text from the SAME LINE as the price field (not from description above).\n'
-      +'  Use the actual characters from the image.\n\n'
-      +'Skip: section headers, Total lines, Übertrag, description-only rows.\n'
+      +'  Must be text from the SAME LINE as the price field.\n\n'
+      +'Skip: section headers, Total lines, \u00dcbertrag, description-only rows.\n'
       +'Return ONLY a JSON array:\n'
       +'[{"pos":"30,00","qty":1,"unit":"gl","line_id":"1 gl"},{"pos":"31,00","qty":168,"unit":"m","line_id":"168 m"},...]';
-      }
-      var allW=conds.map(function(c){return wrapText(c,maxW);});
-      var totH=allW.reduce(function(s,w){return s+w.length*lineH+sz*0.25;},0)+sz*2;
-      lastPage.drawRectangle({x:0,y:cy-totH-60,width:pW,height:totH+100,color:PDFLib.rgb(1,1,1)});
-      allW.forEach(function(wrapped){
-        if(cy<20)return;
-        lastPage.drawText('•  '+wrapped[0],{x:leftX,y:cy,size:sz,font:font,color:blue});cy-=lineH;
-        for(var wi=1;wi<wrapped.length;wi++){if(cy<20)return;
-          lastPage.drawText(wrapped[wi],{x:leftX+bulletW,y:cy,size:sz,font:font,color:blue});cy-=lineH;}
-        cy-=sz*0.25;
-      });
-    }
-    var out=await pdfDoc.save();
-    var blob=new Blob([out],{type:'application/pdf'});
-    var url=URL.createObjectURL(blob);
-    var a=document.createElement('a');
-    a.href=url;a.download='Angebot'+(pdfProjNr?'-'+pdfProjNr:'')+(pdfProjBez?'-'+pdfProjBez:'')+'.pdf';
-    document.body.appendChild(a);a.click();document.body.removeChild(a);
-    setTimeout(function(){URL.revokeObjectURL(url);},3000);
-    showToast('PDF gespeichert ✓','ok');
-  }catch(e){console.error(e);showToast('Fehler: '+e.message,'err');}
+  }
+  var resp=await fetch('https://api.anthropic.com/v1/messages',{
+    method:'POST',
+    headers:{'content-type':'application/json','x-api-key':CLAUDE_API_KEY,
+      'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+    body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1500,
+      messages:[{role:'user',content:[
+        {type:'image',source:{type:'base64',media_type:'image/jpeg',data:b64}},
+        {type:'text',text:prompt}]}]})
+  });
+  if(!resp.ok){var e=await resp.json().catch(function(){return{};});
+    throw new Error('Claude API: '+((e.error&&e.error.message)||resp.status));}
+  var data=await resp.json();
+  var text='';(data.content||[]).forEach(function(b){if(b.type==='text')text+=b.text;});
+  var m=text.match(/\[[\s\S]*\]/);
+  if(!m){console.warn('[Claude] No JSON:',text);return[];}
+  try{return JSON.parse(m[0]);}catch(e){console.error('[Claude] JSON error:',text);return[];}
 }
+
+function updateUebertrag(pageIdx){
+  if(!window._uebertragEls||!window._uebertragEls[pageIdx]) return;
+  var sum=0;
+  Object.entries(parsedPos).forEach(function(kv){
+    var key=kv[0],p=kv[1];
+    if(key.indexOf('uebertrag_')===0) return;
+    if(p.pageIdx<=pageIdx&&p.ep>0&&p.qty>0&&p.status==='price') sum+=p.ep*p.qty;
+  });
+  var el=window._uebertragEls[pageIdx];
+  el.value=sum>0?fmtN(sum):'';
+  el.className='fill-field gp'+(sum>0?' filled':'');
+  if(window._uebertragEls){
+    Object.keys(window._uebertragEls).forEach(function(pi){
+      pi=parseInt(pi);
+      if(pi>pageIdx) updateUebertrag(pi);
+    });
+  }
+}
+
+function placeField(key,overlay,p){
+  var ep=makeField(key,'ep',p.epBox);
+  ep.addEventListener('input',function(){
+    var pp=parsedPos[key]; if(!pp) return;
+    var val=this.value.trim().toLowerCase();
+    var gpEl=overlay.querySelector('.fill-field.gp[data-key="'+key+'"]');
+    if(val==='k'||val==='ka'||val==='k.a.'||val==='k. a.'){
+      pp.status='ka';pp.ep=0;this.className='fill-field ka';this.value='k. A.';
+      if(gpEl)gpEl.value='';
+    } else if(val==='b'||val==='bauseits'){
+      pp.status='bauseits';pp.ep=0;this.className='fill-field bauseits';this.value='bauseits';
+      if(gpEl)gpEl.value='';
+    } else if(val==='i'||val==='inkl.'||val==='inkl'){
+      pp.status='inkl';pp.ep=0;this.className='fill-field bauseits';this.value='inkl.';
+      if(gpEl)gpEl.value='';
+    } else {
+      var n=parseFloat(val.replace(/[' ]/g,'').replace(',','.'));
+      if(!isNaN(n)&&n>0){
+        pp.ep=n;pp.status='price';this.className='fill-field filled';
+        if(gpEl&&pp.qty>0){gpEl.value=fmtN(n*pp.qty);gpEl.className='fill-field gp filled';}
+      } else if(val===''){
+        pp.ep=0;pp.status='price';this.className='fill-field';
+        if(gpEl){gpEl.value='';gpEl.className='fill-field gp';}
+      }
+    }
+    updateUebertrag(pp.pageIdx);
+  });
+  ep.addEventListener('focus',function(){
+    var pp=parsedPos[key];
+    if(pp&&pp.ep>0&&pp.status==='price'){this.value=pp.ep.toString();this.select();}
+  });
+  ep.addEventListener('blur',function(){
+    var pp=parsedPos[key];
+    if(pp&&pp.ep>0&&pp.status==='price') this.value=fmtN(pp.ep);
+  });
+  ep.addEventListener('keydown',function(e){
+    if(e.key==='Tab'||e.key==='Enter'){
+      e.preventDefault();
+      var all=Array.from(document.querySelectorAll('.fill-field:not(.gp)'));
+      var idx2=all.indexOf(this);
+      if(idx2>=0&&idx2<all.length-1){all[idx2+1].focus();all[idx2+1].select();}
+    }
+  });
+  overlay.appendChild(ep);
+  if(p.gpBox){var gp=makeField(key,'gp',p.gpBox);gp.readOnly=true;gp.tabIndex=-1;overlay.appendChild(gp);}
+  var del=document.createElement('button');
+  del.className='del-btn';del.textContent='\u00d7';del.title='Ausblenden';
+  var box=p.gpBox||p.epBox;
+  del.style.left=(box.x+box.w+3)+'px';del.style.top=p.epBox.y+'px';
+  del.addEventListener('click',function(){
+    overlay.querySelectorAll('[data-key="'+key+'"]').forEach(function(el){el.remove();});
+    del.remove();delete parsedPos[key];
+  });
+  overlay.appendChild(del);
+}
+
+function makeField(key,type,box){
+  var el=document.createElement('input');
+  el.type='text';el.className='fill-field'+(type==='gp'?' gp':'');
+  el.dataset.key=key;el.dataset.type=type;
+  el.style.left=box.x+'px';el.style.top=box.y+'px';
+  el.style.width=box.w+'px';el.style.height=box.h+'px';
+  el.style.fontSize='10px';
+  return el;
+}
+
 function fmtN(n){
   if(!n&&n!==0) return '';
   var parts=Number(n).toFixed(2).split('.');
@@ -858,7 +906,7 @@ function fmtN(n){
 
 async function savePdf(){
   if(!sourcePdfBuf||typeof PDFLib==='undefined'){showToast('PDF nicht bereit','err');return;}
-  showToast('PDF wird erstellt…','info');
+  showToast('PDF wird erstellt\u2026','info');
   try{
     var pdfDoc=await PDFLib.PDFDocument.load(new Uint8Array(sourcePdfBuf),{ignoreEncryption:true});
     var font=await pdfDoc.embedFont(PDFLib.StandardFonts.Helvetica);
@@ -871,11 +919,11 @@ async function savePdf(){
       var d=kv[1]; if(!pages[d.pageIdx]||!d.epBox) return;
       var page=pages[d.pageIdx];
       var pH=page.getHeight();
-      var epX=d.epBox.x/RENDER_SCALE, epYtop=d.epBox.y/RENDER_SCALE;
-      var epH=d.epBox.h/RENDER_SCALE, epW=d.epBox.w/RENDER_SCALE;
-      var epPdfY=pH-epYtop-epH, epRight=epX+epW;
+      var epX=d.epBox.x/RENDER_SCALE,epYtop=d.epBox.y/RENDER_SCALE;
+      var epH=d.epBox.h/RENDER_SCALE,epW=d.epBox.w/RENDER_SCALE;
+      var epPdfY=pH-epYtop-epH,epRight=epX+epW;
       var gpRight=null;
-      if(d.gpBox){var gpX=d.gpBox.x/RENDER_SCALE; gpRight=gpX+d.gpBox.w/RENDER_SCALE;}
+      if(d.gpBox){var gpX=d.gpBox.x/RENDER_SCALE;gpRight=gpX+d.gpBox.w/RENDER_SCALE;}
       if(d.status==='ka'){
         page.drawText('k. A.',{x:epRight-cw('k. A.',sz),y:epPdfY,size:sz,font:font,color:blue});
       } else if(d.status==='bauseits'){
@@ -893,18 +941,18 @@ async function savePdf(){
     if(conds.length>0){
       var lastPage=pages[pages.length-1];
       var pW=lastPage.getWidth(),pHH=lastPage.getHeight();
-      var cy=80,leftX=56.5,bulletW=cw('•  ',sz),maxW=pW-leftX-40-bulletW,lineH=sz*1.3;
+      var cy=80,leftX=56.5,bulletW=cw('\u2022  ',sz),maxW=pW-leftX-40-bulletW,lineH=sz*1.3;
       function wrapText(text,mW){
-        var words=text.split(' '),lines2=[],cur='';
-        words.forEach(function(w){var test=cur?cur+' '+w:w;if(cw(test,sz)<=mW){cur=test;}else{if(cur)lines2.push(cur);cur=w;}});
-        if(cur)lines2.push(cur);return lines2.length?lines2:[''];
+        var words=text.split(' '),lns=[],cur='';
+        words.forEach(function(w){var test=cur?cur+' '+w:w;if(cw(test,sz)<=mW){cur=test;}else{if(cur)lns.push(cur);cur=w;}});
+        if(cur)lns.push(cur);return lns.length?lns:[''];
       }
-      var allW=conds.map(function(c2){return wrapText(c2,maxW);});
+      var allW=conds.map(function(c){return wrapText(c,maxW);});
       var totH=allW.reduce(function(s,w){return s+w.length*lineH+sz*0.25;},0)+sz*2;
       lastPage.drawRectangle({x:0,y:cy-totH-60,width:pW,height:totH+100,color:PDFLib.rgb(1,1,1)});
       allW.forEach(function(wrapped){
         if(cy<20)return;
-        lastPage.drawText('•  '+wrapped[0],{x:leftX,y:cy,size:sz,font:font,color:blue});cy-=lineH;
+        lastPage.drawText('\u2022  '+wrapped[0],{x:leftX,y:cy,size:sz,font:font,color:blue});cy-=lineH;
         for(var wi=1;wi<wrapped.length;wi++){if(cy<20)return;
           lastPage.drawText(wrapped[wi],{x:leftX+bulletW,y:cy,size:sz,font:font,color:blue});cy-=lineH;}
         cy-=sz*0.25;
@@ -917,13 +965,13 @@ async function savePdf(){
     a.href=url;a.download='Angebot'+(pdfProjNr?'-'+pdfProjNr:'')+(pdfProjBez?'-'+pdfProjBez:'')+'.pdf';
     document.body.appendChild(a);a.click();document.body.removeChild(a);
     setTimeout(function(){URL.revokeObjectURL(url);},3000);
-    showToast('PDF gespeichert ✓','ok');
+    showToast('PDF gespeichert \u2713','ok');
   }catch(e){console.error(e);showToast('Fehler: '+e.message,'err');}
 }
 
-document.addEventListener('DOMContentLoaded', function(){
-  var logoEl = document.getElementById('logoImg');
-  if(logoEl) logoEl.src = MORF_LOGO_B64;
+document.addEventListener('DOMContentLoaded',function(){
+  var logoEl=document.getElementById('logoImg');
+  if(logoEl) logoEl.src=MORF_LOGO_B64;
   refreshCostDisplays();
 });
 </script>

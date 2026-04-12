@@ -208,7 +208,24 @@ body{font-family:var(--font);font-size:13px;background:var(--bg);color:var(--tex
 .toast.ok{background:var(--green)}.toast.err{background:var(--red)}
 .toast.info{background:#927200}
 
-/* PROGRESS BAR */
+/* BEDINGUNGEN MANAGEMENT */
+.cond-add-btn{width:100%;padding:7px 10px;background:var(--yellow-bg);border:1.5px dashed var(--yellow);
+  border-radius:6px;cursor:pointer;font-family:var(--font);font-size:11px;font-weight:600;
+  color:#927200;margin-top:10px;display:flex;align-items:center;gap:6px}
+.cond-add-btn:hover{background:#fff8cc}
+.cond-add-form{background:#f8f8f6;border:1px solid var(--border);border-radius:7px;
+  padding:10px;margin-top:8px;display:none}
+.cond-add-form.open{display:block}
+.cond-field{width:100%;border:1.5px solid var(--border2);border-radius:5px;
+  padding:6px 8px;font-family:var(--font);font-size:11px;margin-bottom:6px;outline:none}
+.cond-field:focus{border-color:var(--yellow)}
+.cond-item-del{margin-left:auto;background:none;border:none;cursor:pointer;
+  color:var(--dim);font-size:13px;padding:0 2px;opacity:.5;flex-shrink:0}
+.cond-item-del:hover{color:var(--red);opacity:1}
+.cond-global-badge{font-size:8px;background:#e8e8e4;color:var(--muted);
+  border-radius:3px;padding:1px 4px;margin-left:4px;font-weight:600;letter-spacing:.5px}
+
+/* PROGRESS BAR *//* PROGRESS BAR */
 .progress-overlay{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:400;
   display:none;flex-direction:column;align-items:center;justify-content:center;gap:16px}
 .progress-overlay.active{display:flex}
@@ -300,7 +317,7 @@ body{font-family:var(--font);font-size:13px;background:var(--bg);color:var(--tex
   <div class="drop-screen">
     <div class="drop-card">
       <div class="eyebrow">LV-Offerte</div>
-      <div style="font-family:var(--mono);font-size:9px;color:var(--dim);margin-bottom:8px">Deploy: 12.04.2026 14:29</div>
+      <div style="font-family:var(--mono);font-size:9px;color:var(--dim);margin-bottom:8px">Deploy: 12.04.2026 14:36</div>
       <h1>Leistungsverzeichnis<br>ausfüllen</h1>
       <div class="drop-zone" id="dropZone"
         ondragover="event.preventDefault();this.classList.add('over')"
@@ -609,29 +626,97 @@ function clearFill(){
 // ── CONDITIONS ────────────────────────────────────────────────
 function buildCondPanel(){
   var cats=document.getElementById('condCats'); cats.innerHTML='';
-  Object.keys(COND_CATS).forEach(function(cat){
+
+  // Group by kategorie
+  var groups={};
+  (dbBedingungen.length>0 ? dbBedingungen : []).forEach(function(b){
+    if(!groups[b.kategorie]) groups[b.kategorie]=[];
+    groups[b.kategorie].push(b);
+  });
+
+  // Fallback to hardcoded COND_CATS if DB empty
+  if(Object.keys(groups).length===0){
+    Object.keys(COND_CATS).forEach(function(cat){
+      groups[cat]=COND_CATS[cat].map(function(e){
+        return {id:null,titel:typeof e==='string'?e:e.title,text:typeof e==='string'?e:e.text,is_global:true};
+      });
+    });
+  }
+
+  Object.keys(groups).forEach(function(cat){
     var div=document.createElement('div'); div.className='cond-cat';
     var btn=document.createElement('button'); btn.className='cond-cat-btn';
     btn.innerHTML=cat+' <span class="arr">&#9658;</span>';
     var items=document.createElement('div'); items.className='cond-items';
     btn.onclick=function(){ btn.classList.toggle('open'); items.classList.toggle('open'); };
-    COND_CATS[cat].forEach(function(entry){
-      var titleStr=typeof entry==='string'?entry:String(entry&&entry.title||'');
-      var textStr=typeof entry==='string'?entry:String(entry&&entry.text||entry&&entry.title||'');
+
+    groups[cat].forEach(function(entry){
+      var titleStr=entry.titel||''; var textStr=entry.text||titleStr;
       var item=document.createElement('div'); item.className='cond-item';
-      var id='cond_'+(cat+titleStr).replace(/\W/g,'').slice(0,20);
-      var cb=document.createElement('input'); cb.type='checkbox'; cb.id=id;
+      var uid='cond_'+(cat+titleStr).replace(/\W/g,'').slice(0,20);
+      var cb=document.createElement('input'); cb.type='checkbox'; cb.id=uid;
       cb.checked=activeConds.some(function(a){ return a.text===textStr; });
       cb.addEventListener('change',function(){
-        if(this.checked){ if(!activeConds.some(function(a){ return a.text===textStr; })) activeConds.push({text:textStr,title:titleStr}); }
-        else{ activeConds=activeConds.filter(function(a){ return a.text!==textStr; }); }
+        if(this.checked){ if(!activeConds.some(function(a){return a.text===textStr;})) activeConds.push({text:textStr,title:titleStr}); }
+        else{ activeConds=activeConds.filter(function(a){return a.text!==textStr;}); }
         updateCondPreview();
       });
-      var lbl=document.createElement('label'); lbl.htmlFor=id; lbl.textContent=titleStr; lbl.title=textStr;
-      item.appendChild(cb); item.appendChild(lbl); items.appendChild(item);
+      var lbl=document.createElement('label'); lbl.htmlFor=uid; lbl.textContent=titleStr; lbl.title=textStr;
+      item.appendChild(cb); item.appendChild(lbl);
+      // Delete button for personal conditions
+      if(!entry.is_global && entry.id){
+        var del=document.createElement('button'); del.className='cond-item-del'; del.textContent='×';
+        del.title='Löschen';
+        del.onclick=(function(id,txt){ return function(){
+          activeConds=activeConds.filter(function(a){return a.text!==txt;});
+          deleteBedingung(id);
+        };})(entry.id, textStr);
+        item.appendChild(del);
+      } else if(entry.is_global){
+        var badge=document.createElement('span'); badge.className='cond-global-badge'; badge.textContent='Global';
+        item.appendChild(badge);
+      }
+      items.appendChild(item);
     });
     div.appendChild(btn); div.appendChild(items); cats.appendChild(div);
   });
+
+  // Add new condition button
+  var addBtn=document.createElement('button'); addBtn.className='cond-add-btn';
+  addBtn.innerHTML='+ Neue Bedingung hinzufügen';
+  var addForm=document.createElement('div'); addForm.className='cond-add-form';
+  addForm.innerHTML=
+    '<select class="cond-field" id="newCondKat">'+
+    Object.keys(groups).concat(['Neue Kategorie…']).map(function(k){return'<option>'+k+'</option>';}).join('')+
+    '</select>'+
+    '<input class="cond-field" id="newCondKatCustom" placeholder="Kategoriename…" style="display:none">'+
+    '<input class="cond-field" id="newCondTitel" placeholder="Kurztitel (erscheint als Checkbox-Label)">'+
+    '<textarea class="cond-field" id="newCondText" placeholder="Vollständiger Bedingungstext für das PDF" rows="3" style="resize:vertical"></textarea>'+
+    '<button onclick="addNewCond()" style="width:100%;padding:7px;background:var(--text);color:#fff;border:none;border-radius:5px;font-family:var(--font);font-size:11px;font-weight:600;cursor:pointer">✓ Speichern</button>';
+  addBtn.onclick=function(){ addForm.classList.toggle('open'); };
+  // Show custom kategorie input
+  addForm.querySelector && setTimeout(function(){
+    var sel=document.getElementById('newCondKat');
+    if(sel) sel.onchange=function(){
+      var ci=document.getElementById('newCondKatCustom');
+      if(ci) ci.style.display=this.value.indexOf('Neue Kategorie')>=0?'block':'none';
+    };
+  },100);
+  cats.appendChild(addBtn);
+  cats.appendChild(addForm);
+}
+
+async function addNewCond(){
+  var katSel=document.getElementById('newCondKat');
+  var katCustom=document.getElementById('newCondKatCustom');
+  var titel=document.getElementById('newCondTitel').value.trim();
+  var text=document.getElementById('newCondText').value.trim();
+  var kat=(katSel&&katSel.value.indexOf('Neue Kategorie')>=0&&katCustom)?katCustom.value.trim():katSel.value;
+  if(!kat||!titel||!text){ showToast('Bitte alle Felder ausfüllen','err'); return; }
+  await saveBedingung(kat, titel, text);
+  document.getElementById('newCondTitel').value='';
+  document.getElementById('newCondText').value='';
+  document.querySelector('.cond-add-form').classList.remove('open');
 }
 
 function updateCondPreview(){
@@ -647,6 +732,44 @@ function getActiveConds(){
   var lines=activeConds.map(function(c){ return c.text; });
   if(manual) manual.split('\n').forEach(function(l){ if(l.trim()) lines.push(l.trim()); });
   return lines;
+}
+
+// ── BEDINGUNGEN aus Supabase ──────────────────────────────────
+var dbBedingungen = []; // loaded from DB after login
+
+async function loadBedingungen(){
+  if(!supabase) return;
+  var { data, error } = await supabase
+    .from('bedingungen')
+    .select('*')
+    .order('sort_order', { ascending: true });
+  if(error){ console.error('[Bedingungen]', error); return; }
+  dbBedingungen = data || [];
+  console.log('[Bedingungen] Loaded:', dbBedingungen.length);
+  buildCondPanel();
+}
+
+async function saveBedingung(kategorie, titel, text){
+  if(!supabase) return;
+  var { data: { user } } = await supabase.auth.getUser();
+  if(!user) return;
+  var { error } = await supabase.from('bedingungen').insert({
+    kategorie, titel, text,
+    is_global: false,
+    user_id: user.id
+  });
+  if(error){ showToast('Fehler: ' + error.message, 'err'); return; }
+  showToast('Bedingung gespeichert ✓', 'ok');
+  await loadBedingungen();
+}
+
+async function deleteBedingung(id){
+  if(!supabase) return;
+  var { error } = await supabase.from('bedingungen').delete().eq('id', id);
+  if(error){ showToast('Fehler: ' + error.message, 'err'); return; }
+  showToast('Gelöscht', 'ok');
+  dbBedingungen = dbBedingungen.filter(function(b){ return b.id !== id; });
+  buildCondPanel();
 }
 
 function toggleCond(){
@@ -1231,6 +1354,7 @@ function showReset(){
 }
 
 function onLoggedIn(user){
+  loadBedingungen();
   document.getElementById('topRight').innerHTML =
     '<span style="font-size:11px;color:var(--muted)">'+user.email+'</span>' +
     '<button class="btn btn-ghost" onclick="doLogout()" style="font-size:11px">Abmelden</button>' +

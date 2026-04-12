@@ -260,7 +260,7 @@ body{font-family:var(--font);font-size:13px;background:var(--bg);color:var(--tex
   <div class="drop-screen">
     <div class="drop-card">
       <div class="eyebrow">LV-Offerte</div>
-      <div style="font-family:var(--mono);font-size:9px;color:var(--dim);margin-bottom:8px">Deploy: 12.04.2026 13:54</div>
+      <div style="font-family:var(--mono);font-size:9px;color:var(--dim);margin-bottom:8px">Deploy: 12.04.2026 13:58</div>
       <h1>Leistungsverzeichnis<br>ausfüllen</h1>
       <div class="drop-zone" id="dropZone"
         ondragover="event.preventDefault();this.classList.add('over')"
@@ -549,6 +549,7 @@ function openFill(){
     '<button class="btn btn-ghost" onclick="showView(\'vSelect\')">&#8592; Zur\u00fcck</button>'+
     '<button class="btn btn-ghost" onclick="clearFill()" style="color:var(--red)">\u2715 Leeren</button>'+
     '<button class="btn btn-ghost" onclick="toggleCond()">Bedingungen</button>'+
+    '<select id="filialeSelect" style="padding:4px 8px;border:1.5px solid var(--border2);border-radius:5px;font-size:11px;font-family:var(--font);background:var(--surface)"><option value="Oberglatt">Filiale Zürich</option><option value="Oberentfelden">Filiale Aargau</option><option value="Niederurnen">Filiale Glarus</option><option value="Trimmis">Filiale Graubünden</option><option value="Waldkirch">Filiale St. Gallen</option><option value="Cham">Filiale Zentralschweiz</option></select>'+
     '<span style="display:inline-flex;align-items:center;gap:5px;font-size:11px;color:var(--muted)">Rabatt <input id="rabattInput" type="number" min="0" max="100" step="0.5" value="0" style="width:48px;padding:4px 6px;border:1.5px solid var(--border2);border-radius:5px;font-size:11px;font-family:var(--mono);text-align:center"> %</span>'+
     '<button class="btn btn-dark" onclick="savePdf()">\u2193 PDF herunterladen</button>';
   buildCondPanel();
@@ -1118,12 +1119,12 @@ async function savePdf(){
       });
     }
 
-    // Signature area
+    // Ort und Datum (Unterschrift/Stempel wird separat aufgedruckt)
+    var filialeOrt=(document.getElementById('filialeSelect')?document.getElementById('filialeSelect').value:null)||'Oberglatt';
     ty=140;
+    var ortDatumStr=filialeOrt+', '+dateStr;
     dbPage.drawText('Ort, Datum:',{x:leftX,y:ty,size:9,font:dbFont,color:gray});
-    dbPage.drawLine({start:{x:leftX+60,y:ty},end:{x:leftX+200,y:ty},thickness:0.5,color:PDFLib.rgb(0.7,0.7,0.7)});
-    dbPage.drawText('Unterschrift / Stempel:',{x:leftX+240,y:ty,size:9,font:dbFont,color:gray});
-    dbPage.drawLine({start:{x:leftX+350,y:ty},end:{x:rightX,y:ty},thickness:0.5,color:PDFLib.rgb(0.7,0.7,0.7)});
+    dbPage.drawText(ortDatumStr,{x:leftX+60,y:ty,size:10,font:dbFontB,color:black});
 
     // Copy all main PDF pages after deckblatt
     var mainPageIndices=mainDoc.getPageIndices();

@@ -249,7 +249,7 @@ body{font-family:var(--font);font-size:13px;background:var(--bg);color:var(--tex
   <div class="drop-screen">
     <div class="drop-card">
       <div class="eyebrow">LV-Offerte</div>
-      <div style="font-family:var(--mono);font-size:9px;color:var(--dim);margin-bottom:8px">Deploy: 12.04.2026 10:19</div>
+      <div style="font-family:var(--mono);font-size:9px;color:var(--dim);margin-bottom:8px">Deploy: 12.04.2026 10:23</div>
       <h1>Leistungsverzeichnis<br>ausfüllen</h1>
       <div class="drop-zone" id="dropZone"
         ondragover="event.preventDefault();this.classList.add('over')"
@@ -543,9 +543,14 @@ async function runClaudeParser(){
 
       // ── 3. Find price rows: lines with dot items ───────────────
       // Dots = text item with 4+ consecutive dots → exact x, y, w
+      // Only count dots in the RIGHT portion of page (price columns, not description text)
+      // "Weiteres ............" etc. appear left of center → filter them out
+      var dotThresholdX = pageW * 0.55; // dots must start past 55% of page width
       var pdfRows=[];
       lines.forEach(function(line){
-        var dots=line.items.filter(function(it){ return /\.{4,}/.test(it.str); });
+        var dots=line.items.filter(function(it){
+          return /\.{4,}/.test(it.str) && it.x >= dotThresholdX;
+        });
         if(!dots.length) return;
         dots.sort(function(a,b){ return a.x-b.x; });
         var nonDots=line.items.filter(function(it){ return !/\.{4,}/.test(it.str); });

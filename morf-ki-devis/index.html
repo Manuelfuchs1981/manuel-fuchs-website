@@ -578,7 +578,7 @@ function renderTable(positionen){
             'data-idx="'+i+'" data-orig="'+p.ep+'" '+
             'value="'+epVal+'" placeholder="0.00" '+
             'oninput="onEpInput(this,'+i+')" onblur="onEpBlur(this,'+i+')" '+
-            'onfocus="onEpFocus(this)">'+
+            'onfocus="onEpFocus(this)" onkeydown="onEpKeydown(event,this)">'+
           (hasSugg?'<span class="ep-badge" title="Vorschlag aus Archiv: '+fmtN(p.ep_vorschlag)+'">KI</span>':'')+'</div>'+
         '</td>'+
         '<td class="gp-cell" id="gp_'+i+'">'+
@@ -612,6 +612,18 @@ function onEpBlur(inp,idx){
 function onEpFocus(inp){
   var n=parseFloat(inp.value.replace(/[' ]/g,'').replace(',','.'));
   if(!isNaN(n)&&n>0) inp.value=n;
+  // Select all on focus
+  setTimeout(function(){inp.select();},0);
+}
+
+function onEpKeydown(e,inp){
+  if(e.key==='Tab'){
+    e.preventDefault();
+    var all=Array.from(document.querySelectorAll('.ep-input'));
+    var i=all.indexOf(inp);
+    var next=e.shiftKey?all[i-1]:all[i+1];
+    if(next){next.focus();}
+  }
 }
 
 function recalcTotals(){

@@ -460,8 +460,10 @@ function onLogin(session){
   document.getElementById('userBadge').textContent=initials+' · '+session.user.email;
   document.getElementById('apiKeyInput').value=localStorage.getItem('morfApiKey')||'';
   // Auto-fill Sachbearbeiter
-  var sachb=parts.map(function(p){return p.charAt(0).toUpperCase()+p.slice(1);}).join(' ');
-  document.getElementById('fSachb').value=sachb;
+  // Manuel Fuchs is always the Sachbearbeiter
+  document.getElementById('fSachb').value='Manuel Fuchs';
+  document.getElementById('fTel').value='044 244 50 24';
+  document.getElementById('fMobile').value='079 236 40 61';
 }
 
 async function doLogout(){
@@ -551,8 +553,8 @@ function renderOfferte(offerte){
   document.getElementById('fName').value=d.unternehmer_name||MORF.name;
   document.getElementById('fAddr1').value=d.unternehmer_addr1||MORF.addr1;
   document.getElementById('fAddr2').value=d.unternehmer_addr2||MORF.addr2;
-  document.getElementById('fTel').value=d.tel||MORF.tel;
-  document.getElementById('fMobile').value=d.mobile||'';
+  document.getElementById('fTel').value=d.tel||'044 244 50 24';
+  document.getElementById('fMobile').value=d.mobile||'079 236 40 61';
   document.getElementById('fRabattPct').value=d.rabatt_pct||0;
 
   // Ort/Datum auto

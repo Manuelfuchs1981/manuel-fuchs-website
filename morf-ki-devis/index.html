@@ -477,7 +477,6 @@ async function handleFile(file){
   if(!apiKey){showToast('Bitte zuerst API-Key in ⚙ Einstellungen eingeben','err');toggleDrawer();return;}
 
   currentPdfName=file.name;
-  currentPdfB64=b64;
   showSpinner('PDF wird gelesen...');
 
   // PDF to base64
@@ -487,6 +486,7 @@ async function handleFile(file){
     r.onerror=rej;
     r.readAsDataURL(file);
   });
+  currentPdfB64=b64; // store AFTER reading
 
   updateSpinner('Claude analysiert Offerte (1 API-Call)...');
 

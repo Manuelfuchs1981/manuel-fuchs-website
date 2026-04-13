@@ -324,7 +324,7 @@ body{font-family:var(--font);font-size:13px;background:var(--bg);color:var(--tex
   <div class="drop-screen">
     <div class="drop-card">
       <div class="eyebrow">LV-Offerte</div>
-      <div style="font-family:var(--mono);font-size:9px;color:var(--dim);margin-bottom:8px">Deploy: 13.04.2026 10:59</div>
+      <div style="font-family:var(--mono);font-size:9px;color:var(--dim);margin-bottom:8px">Deploy: 13.04.2026 11:10</div>
       <h1>Leistungsverzeichnis<br>ausfüllen</h1>
       <div class="drop-zone" id="dropZone"
         ondragover="event.preventDefault();this.classList.add('over')"
@@ -931,104 +931,80 @@ async function runClaudeParser(){
       var uebertragRow=null;
       var pdfRows=[];
 
-      // ── IS THIS A COVER PAGE? ──────────────────────────────
+      // ── COVER PAGE ─────────────────────────────────────────
       var isCoverPage=pi===0&&allItems.some(function(it){
         return /\b(unternehmer|offertsumme|sachbearbeiter)\b/i.test(it.str);
       });
 
       if(isCoverPage){
-        // LABEL-BASED COVER FIELD DETECTION
-        // Find each known label, place field at the correct relative position
-        var S2=RENDER_SCALE;
-
-        function findLabel(regex){
-          for(var li=0;li<lines.length;li++){
-            for(var ii=0;ii<lines[li].items.length;ii++){
-              var it=lines[li].items[ii];
-              if(regex.test(it.str)) return {item:it,line:lines[li],lineIdx:li};
-            }
-          }
-          return null;
+        function addCoverF(label,dl,forceW){
+          var fw=forceW||dl.w||pageW*0.20;
+          pdfRows.push({y:dl.y,text:label,
+            ep:{x:dl.x,y:dl.y,w:fw,str:'......',h:dl.h||8},
+            gp:null,isCover:true});
         }
 
-        function addCoverRow(label,fieldX,fieldY,fieldW,isRight){
-          pdfRows.push({y:fieldY,text:label,
-            ep:{x:fieldX,y:fieldY,w:fieldW,str:'......',h:8},
-            gp:null,isCover:true,coverRight:isRight||false});
-        }
-
-        // Unternehmer: 3 dot-lines left of page center
-        // Find lines with long dots left of 53%
-        lines.forEach(function(line){
-          var ldots=line.items.filter(function(it){
-            return /\.{8,}/.test(it.str)&&it.x<pageW*0.53&&!/%/.test(it.str);
-          });
-          if(!ldots.length) return;
-          var lbl=line.items.filter(function(it){return !/\.{3,}/.test(it.str);})
-                            .map(function(it){return it.str;}).join(' ').trim();
-          ldots.forEach(function(dl){
-            // Width = from dl.x to 52% of pageW
-            var fw=Math.max(pageW*0.52-dl.x,60);
-            addCoverRow(lbl,dl.x,dl.y,fw,false);
-          });
-        });
-
-        // Tel and Mobile: dots RIGHT of 58%
         lines.forEach(function(line){
           var hasFr=line.items.some(function(it){return /^Fr\.?$/i.test(it.str.trim());});
-          if(hasFr) return; // skip Offertsumme rows
-          var rdots=line.items.filter(function(it){
-            return /\.{4,}/.test(it.str)&&it.x>=pageW*0.58&&!/%/.test(it.str);
-          });
-          if(!rdots.length) return;
-          var lbl=line.items.filter(function(it){return !/\.{3,}/.test(it.str);})
-                            .map(function(it){return it.str;}).join(' ').trim();
-          rdots.forEach(function(dl){
-            // Fixed width for Tel/Mobile: 20% of page
-            var fw=Math.min(pageW*0.97-dl.x, pageW*0.20);
-            addCoverRow(lbl,dl.x,dl.y,fw,true);
-          });
-        });
+          var rowTxt=line.items.filter(function(it){return !/\.{3,}/.test(it.str);})
+                              .map(function(it){return it.str;}).join(' ').trim();
 
-        // Rabatt %: tiny field for the percentage
-        lines.forEach(function(line){
-          var pctItem=line.items.filter(function(it){
-            return /\.{3,}%/.test(it.str);
-          });
-          pctItem.forEach(function(dl){
-            var lbl='Rabatt %';
-            // Width: just the dots part before %
-            var dotStr=dl.str.replace('%','');
-            var fw=Math.min(dl.w*0.7||30,pageW*0.07);
-            addCoverRow(lbl,dl.x,dl.y,fw,false);
-          });
-        });
-
-        // Offertsumme Fr. fields (Eingabe + Revidiert columns)
-        lines.forEach(function(line){
-          var frItems=line.items.filter(function(it){
-            return /^Fr\.?$/i.test(it.str.trim());
-          });
-          if(!frItems.length) return;
-          var lbl=line.items.filter(function(it){
-            return !/^Fr\.?$/i.test(it.str.trim())&&!/\.{3,}/.test(it.str);
-          }).map(function(it){return it.str;}).join(' ').trim();
-
-          frItems.forEach(function(fr){
-            // Dots immediately after this Fr.
-            var dotsAfter=line.items.filter(function(it){
-              return /\.{4,}/.test(it.str)&&it.x>fr.x&&it.x<fr.x+pageW*0.25;
+          // LEFT FIELDS: dots left of 55%, no % sign
+          if(!hasFr){
+            var ldots=line.items.filter(function(it){
+              return /\.{6,}/.test(it.str)&&it.x<pageW*0.55&&!/%/.test(it.str);
             });
-            dotsAfter.forEach(function(dl){
-              var fw=Math.min(dl.w||pageW*0.17,pageW*0.20);
-              var already=pdfRows.some(function(r){return Math.abs(r.y-dl.y)<2&&Math.abs(r.ep.x-dl.x)<3;});
-              if(!already) addCoverRow(lbl,dl.x,dl.y,fw,false);
+            ldots.forEach(function(dl){
+              // Width = from dl.x to ~52% of pageW, min 30% of pageW
+              var fw=Math.max(pageW*0.52-dl.x, pageW*0.30);
+              addCoverF(rowTxt,dl,fw);
             });
+          }
+
+          // RIGHT FIELDS: dots right of 58%, no Fr. on line
+          if(!hasFr){
+            var rdots=line.items.filter(function(it){
+              return /\.{4,}/.test(it.str)&&it.x>=pageW*0.58&&!/%/.test(it.str);
+            });
+            // All right-side fields on same line get same width
+            var rdotX=rdots.length?rdots[0].x:null;
+            var rfw=rdotX?Math.min(pageW*0.95-rdotX,pageW*0.22):null;
+            rdots.forEach(function(dl){
+              addCoverF(rowTxt,{x:rdotX,y:dl.y,w:rfw,h:dl.h||8},rfw);
+            });
+          }
+
+          // RABATT %: dots followed by % sign
+          var pctDot=line.items.filter(function(it){return /\.{3,}%/.test(it.str);});
+          pctDot.forEach(function(dl){
+            // Width = only the dots part (before %)
+            var fw=Math.max((dl.w||pageW*0.07)*0.75,pageW*0.05);
+            addCoverF('Rabatt %',{x:dl.x,y:dl.y,w:fw,h:dl.h||8},fw);
           });
+
+          // FR. FIELDS (Offertsumme): dots after each "Fr." label
+          if(hasFr){
+            var frItems=line.items.filter(function(it){
+              return /^Fr\.?$/i.test(it.str.trim());
+            });
+            frItems.forEach(function(fr){
+              var dotsAfter=line.items.filter(function(it){
+                return /\.{4,}/.test(it.str)&&it.x>fr.x&&it.x<fr.x+pageW*0.30;
+              });
+              dotsAfter.forEach(function(dl){
+                // Width = dot width, min 15% of page
+                var fw=Math.max(dl.w||pageW*0.17,pageW*0.15);
+                var already=pdfRows.some(function(r){
+                  return Math.abs(r.y-dl.y)<2&&Math.abs(r.ep.x-dl.x)<5;
+                });
+                if(!already) addCoverF(rowTxt,{x:dl.x,y:dl.y,w:fw,h:dl.h||8},fw);
+              });
+            });
+          }
         });
 
       } else {
-        // ── LV PAGES ────────────────────────────────────────
+        // ── LV PAGES ───────────────────────────────────────
         var isBauPlusPage=allItems.some(function(it){return it.str==='SKI';});
         var bauEpX=null,bauEpW=null,bauGpX=null,bauGpW=null;
         if(isBauPlusPage){
@@ -1041,8 +1017,8 @@ async function runClaudeParser(){
             var start2=lastA2.x+(lastA2.w||6)+2;
             var avail2=pageW-start2-4;
             if(avail2<50) continue;
-            bauEpX=start2; bauEpW=avail2*0.47;
-            bauGpX=start2+avail2*0.51; bauGpW=avail2*0.47;
+            bauEpX=start2;bauEpW=avail2*0.47;
+            bauGpX=start2+avail2*0.51;bauGpW=avail2*0.47;
             console.log('[BauPlus] EP='+Math.round(bauEpX)+' GP='+Math.round(bauGpX));
             break;
           }
@@ -1070,7 +1046,7 @@ async function runClaudeParser(){
             if(priceLabel.length){
               priceLabel.forEach(function(lbl){
                 var st=lbl.x+(lbl.w||18)+3;
-                var av=pageW-st-5; var hw=av*0.47;
+                var av=pageW-st-5;var hw=av*0.47;
                 dots.push({x:st,y:lbl.y,w:hw,str:lbl.str,isSFr:true});
                 dots.push({x:st+hw+4,y:lbl.y,w:hw,str:lbl.str+'_gp',isSFr:true});
               });
@@ -1289,14 +1265,10 @@ function placeField(key,overlay,p){
   var isCov=p.isCover||false;
   var ep=makeField(key,'ep',p.epBox,isCov);
   ep.dataset.isCover=isCov?'1':'0';
-
   ep.addEventListener('blur',function(){
     if(this.dataset.isCover==='1') return;
     var pp=parsedPos[key];
-    if(pp&&pp.status==='price'){
-      if(pp.ep>0) this.value=fmtN(pp.ep);
-      else if(this.value==='0') this.value='0.00';
-    }
+    if(pp&&pp.status==='price'){if(pp.ep>0)this.value=fmtN(pp.ep);else if(this.value==='0')this.value='0.00';}
   });
   ep.addEventListener('focus',function(){
     if(this.dataset.isCover==='1') return;
@@ -1308,38 +1280,24 @@ function placeField(key,overlay,p){
     if(this.dataset.isCover==='1'){pp.coverText=this.value;return;}
     var val=this.value.trim().toLowerCase();
     var gpEl=overlay.querySelector('.fill-field.gp[data-key="'+key+'"]');
-    if(val==='k'||val==='ka'||val==='k.a.'||val==='k. a.'){
-      pp.status='ka';pp.ep=0;this.className='fill-field ka';this.value='k. A.';if(gpEl)gpEl.value='';
-    } else if(val==='b'||val==='bauseits'){
-      pp.status='bauseits';pp.ep=0;this.className='fill-field bauseits';this.value='bauseits';if(gpEl)gpEl.value='';
-    } else if(val==='i'||val==='inkl.'||val==='inkl'){
-      pp.status='inkl';pp.ep=0;this.className='fill-field bauseits';this.value='inkl.';if(gpEl)gpEl.value='';
-    } else {
-      var n=parseFloat(val.replace(/[' ]/g,'').replace(',','.'));
-      if(!isNaN(n)&&n>0){
-        pp.ep=n;pp.status='price';this.className='fill-field filled';
-        if(gpEl&&pp.qty>0){gpEl.value=fmtN(n*pp.qty);gpEl.className='fill-field gp filled';}
-      } else if(val===''){
-        pp.ep=0;pp.status='price';this.className='fill-field';
-        if(gpEl){gpEl.value='';gpEl.className='fill-field gp';}
-      }
-    }
+    if(val==='k'||val==='ka'||val==='k.a.'||val==='k. a.'){pp.status='ka';pp.ep=0;this.className='fill-field ka';this.value='k. A.';if(gpEl)gpEl.value='';}
+    else if(val==='b'||val==='bauseits'){pp.status='bauseits';pp.ep=0;this.className='fill-field bauseits';this.value='bauseits';if(gpEl)gpEl.value='';}
+    else if(val==='i'||val==='inkl.'||val==='inkl'){pp.status='inkl';pp.ep=0;this.className='fill-field bauseits';this.value='inkl.';if(gpEl)gpEl.value='';}
+    else{var n=parseFloat(val.replace(/[' ]/g,'').replace(',','.'));
+      if(!isNaN(n)&&n>0){pp.ep=n;pp.status='price';this.className='fill-field filled';
+        if(gpEl&&pp.qty>0){gpEl.value=fmtN(n*pp.qty);gpEl.className='fill-field gp filled';}}
+      else if(val===''){pp.ep=0;pp.status='price';this.className='fill-field';if(gpEl){gpEl.value='';gpEl.className='fill-field gp';}}}
     updateUebertrag(pp.pageIdx);
   });
   ep.addEventListener('keydown',function(e){
-    if(e.key==='Tab'||e.key==='Enter'){
-      e.preventDefault();
+    if(e.key==='Tab'||e.key==='Enter'){e.preventDefault();
       var all=Array.from(document.querySelectorAll('.fill-field:not(.gp)'));
       var i2=all.indexOf(this);
-      if(i2>=0&&i2<all.length-1){all[i2+1].focus();if(this.dataset.isCover!=='1')all[i2+1].select();}
-    }
+      if(i2>=0&&i2<all.length-1){all[i2+1].focus();if(this.dataset.isCover!=='1')all[i2+1].select();}}
   });
   overlay.appendChild(ep);
-  if(p.gpBox){
-    var gp=makeField(key,'gp',p.gpBox,isCov);gp.readOnly=true;gp.tabIndex=-1;overlay.appendChild(gp);
-  }
-  var del=document.createElement('button');
-  del.className='del-btn';del.textContent='\u00d7';del.title='Ausblenden';
+  if(p.gpBox){var gp=makeField(key,'gp',p.gpBox,isCov);gp.readOnly=true;gp.tabIndex=-1;overlay.appendChild(gp);}
+  var del=document.createElement('button');del.className='del-btn';del.textContent='\u00d7';del.title='Ausblenden';
   var box=p.gpBox||p.epBox;
   del.style.left=(box.x+box.w+3)+'px';del.style.top=p.epBox.y+'px';
   del.addEventListener('click',function(){
@@ -1356,7 +1314,7 @@ function makeField(key,type,box,isCoverField){
   el.style.left=box.x+'px';el.style.top=box.y+'px';
   el.style.width=box.w+'px';el.style.height=box.h+'px';
   el.style.fontSize='10px';
-  if(isCoverField){el.style.textAlign='left';el.style.paddingLeft='4px';el.style.paddingRight='1px';el.style.background='rgba(255,252,200,0.95)';}
+  if(isCoverField){el.style.textAlign='left';el.style.paddingLeft='4px';el.style.paddingRight='1px';el.style.background='rgba(255,252,200,0.92)';}
   return el;
 }
 

@@ -273,6 +273,7 @@ input[type=file]{display:none}
     <button class="tab-btn" id="tabLV" style="display:none" onclick="showTab('lv')">📄 LV ausfüllen</button>
     <button class="btn" id="exportBtn" style="display:none" onclick="doExport()">⬇ Export PDF</button>
     <button class="btn" id="saveBtn" style="display:none" onclick="doSave()">💾 Speichern</button>
+    <button class="btn" id="testModeBtn" onclick="activateTestMode()" title="Testet Dateiname, Filiale, Export ohne API-Call">🧪 Test</button>
     <button class="btn" onclick="toggleDrawer()">⚙</button>
   </div>
 </div>
@@ -510,6 +511,8 @@ async function handleFile(file){
   }
 
   showSpinner('PDF wird gelesen...');
+  var isTestMode=window._testMode||false;
+  window._testMode=false;
 
   // PDF to base64
   var b64=await new Promise(function(res,rej){
@@ -520,7 +523,26 @@ async function handleFile(file){
   });
   currentPdfB64=b64; // store AFTER reading
 
-  updateSpinner('Claude analysiert Offerte (1 API-Call)...');
+  updateSpinner(isTestMode?'Test-Modus — kein API-Call':'Claude analysiert Offerte (1 API-Call)...');
+
+  if(isTestMode){
+    // Mock data — no API call needed
+    var mockOfferte={
+      bauvorhaben: parsedName||'Testprojekt',
+      bauleiter:'Bauleitung AG',projekt_nr:'1234',datum:'2026-04-13',
+      deckblatt:{},
+      positionen:[
+        {pos_nr:'286.311.111',beschreibung:'Weisse Längslinien 0,15m gespritzt',qty:200,unit:'m',ep:0,gp:0,is_total:false,hat_vorschlag:false},
+        {pos_nr:'286.311.141',beschreibung:'Haltelinien 0,50m gespritzt',qty:10,unit:'m',ep:0,gp:0,is_total:false,hat_vorschlag:false},
+        {pos_nr:'Total 300',beschreibung:'Total Gespritzte Markierungen',qty:0,unit:'',ep:0,gp:0,is_total:true},
+      ]
+    };
+    hideSpinner();
+    renderOfferte(mockOfferte);
+    if(parsedProjNr){document.getElementById('fMorfProjektNr').value=parsedProjNr;onMorfProjNrInput(parsedProjNr);}
+    showToast('✓ Test-Modus: Filiale erkannt, Felder gesetzt. Export-Dateiname testen mit ⬇','ok');
+    return;
+  }
 
   try{
     var {data:{session}}=await supabase.auth.getSession();
@@ -679,6 +701,15 @@ function getTodayStr(){
   return String(t.getDate()).padStart(2,'0')+'.'+
          String(t.getMonth()+1).padStart(2,'0')+'.'+t.getFullYear();
 }
+// ── TEST-MODUS (kein API-Call) ────────────────────────────
+function activateTestMode(){
+  var fileInput=document.getElementById('fileInput');
+  fileInput.click();
+  // Override handleFile temporarily to skip API
+  window._testMode=true;
+  showToast('Test-Modus: PDF wählen → Dateiname + Filiale werden sofort erkannt (kein API-Call)','info');
+}
+
 function onEpKeydown(e,inp){
   if(e.key==='Tab'){
     e.preventDefault();
@@ -1266,11 +1297,12 @@ async function exportOriginalPdf(){
     var url=URL.createObjectURL(blob);
     var a=document.createElement('a');
     a.href=url;
-    var bauvorh=(document.getElementById('fBauvorhaben').value||'Offerte')
+    var bauvorh=(document.getElementById('fBauvorhaben').value||currentPdfName.replace(/\.pdf$/i,'')||'Offerte')
                .replace(/[^a-zA-Z0-9äöüÄÖÜ\s-]/g,'').replace(/\s+/g,'-').trim();
     var morfNr=document.getElementById('fMorfProjektNr').value.trim();
     var fn=morfNr?('Angebot-'+morfNr+'-'+bauvorh):('Ausgefuellt-'+bauvorh);
     a.download=fn+'.pdf';
+    console.log('[Export] Dateiname:', fn+'.pdf');
     a.click();
     URL.revokeObjectURL(url);
     hideSpinner();

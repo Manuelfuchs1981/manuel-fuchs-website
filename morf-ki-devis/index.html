@@ -477,6 +477,7 @@ async function handleFile(file){
   if(!apiKey){showToast('Bitte zuerst API-Key in ⚙ Einstellungen eingeben','err');toggleDrawer();return;}
 
   currentPdfName=file.name;
+  currentPdfB64=b64;
   showSpinner('PDF wird gelesen...');
 
   // PDF to base64

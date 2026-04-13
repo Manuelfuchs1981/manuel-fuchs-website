@@ -334,7 +334,7 @@ body{font-family:var(--font);font-size:13px;background:var(--bg);color:var(--tex
   <div class="drop-screen">
     <div class="drop-card">
       <div class="eyebrow">LV-Offerte</div>
-      <div style="font-family:var(--mono);font-size:9px;color:var(--dim);margin-bottom:8px">Deploy: 13.04.2026 07:34</div>
+      <div style="font-family:var(--mono);font-size:9px;color:var(--dim);margin-bottom:8px">Deploy: 13.04.2026 07:39</div>
       <h1>Leistungsverzeichnis<br>ausfüllen</h1>
       <div class="drop-zone" id="dropZone"
         ondragover="event.preventDefault();this.classList.add('over')"
@@ -455,7 +455,6 @@ var PROJ_FILIALE = {
   '181': {code:'FZS', name:'Filiale Zentralschweiz',   ort:'Cham'},
   '191': {code:'DAV', name:'DAV-Zürich',                 ort:'Zürich'},
 };
-var MORF_FIRMA={name:'Karl Morf AG',addr1:'Aspstrasse 6',addr2:'8154 Oberglatt',tel:'+41 44 852 30 00'};
 function cw(str,sz){var W=0;for(var i=0;i<str.length;i++){var ch=str.charCodeAt(i);if(ch===39||ch===8217||ch===46||ch===44)W+=0.278;else if(ch===32)W+=0.278;else W+=0.556;}return W*sz;}
 var COND_CATS = {
   'Parkplätze': [
@@ -1025,49 +1024,47 @@ function toggleCond(){
   document.getElementById('condPanel').classList.toggle('open');
   document.getElementById('fillBody').classList.toggle('with-panel');
 }
-// ── PDF NATIVE ANALYSIS ─────────────────────────────────────
-// Sends the entire PDF to Claude once → gets all fields for all pages
-// Much cheaper (~$0.05) and more reliable than per-page image calls
-
 async function analyzePdfWithClaude(pdfBase64){
   var APIKEY=localStorage.getItem('morfApiKey')||'';
   if(!APIKEY){showToast('API-Key fehlt','err');return null;}
 
-  showProgress('PDF wird analysiert…','Claude liest Dokument (1 API-Call)',20);
-
   var prompt=
-    'This is a Swiss construction LV (Leistungsverzeichnis) PDF. It may have a cover page and multiple work sections.\n\n'+
-    'Analyze the ENTIRE document and return a complete list of all fields that need to be filled in.\n\n'+
-    'For each fillable field return:\n'+
+    'This is a Swiss construction LV (Leistungsverzeichnis / Ausschreibung) PDF.\n'+
+    'Analyze the ENTIRE document and return ALL fields that need to be filled in.\n\n'+
+    'For EVERY field return these exact properties:\n'+
     '- page: 0-based page number\n'+
     '- y_pct: vertical position as % of page height (0=top, 100=bottom)\n'+
-    '- type: "ep" (unit price), "gp" (total price, auto-calculated), "total" (chapter sum), "cover" (cover page field)\n'+
-    '- pos: position number (e.g. "286.311.111", ".001", "Total 300")\n'+
-    '- qty: quantity (number, 0 for "per" rows)\n'+
-    '- unit: unit of measure (m, m2, St, gl, LE, h, pauschal, Fr)\n'+
-    '- label: short description for cover fields (e.g. "Unternehmer Name", "Brutto Fr.", "Ort Datum")\n'+
-    '- col: for cover page, which column: "left" or "right"\n\n'+
-    'COVER PAGE rules (page 0 if it has "Unternehmer", "Offertsumme" etc.):\n'+
-    '- Find: Unternehmer line 1 (name), line 2 (address), Tel, Mobile, Sachbearbeiter\n'+
-    '- Offertsumme table: Brutto Fr. (Eingabe column), Rabatt % field, Rabatt Fr., MWST Fr., Total Fr. (Eingabe AND Revidiert columns)\n'+
-    '- Bottom: Ort/Datum field, Unternehmer signature field\n\n'+
-    'LV PAGES rules:\n'+
-    '- Every row ending with "A.........." or "SKI A [qty] [unit] A" needs ep+gp fields\n'+
-    '- "per" rows (qty=0) need ep field only\n'+
-    '- "Total [section]" rows need a total field\n'+
-    '- Also look for ep_x_pct and gp_x_pct (column positions as % of page width)\n\n'+
-    'START with { and return ONLY valid JSON:\n'+
-    '{\n'+
-    '  "ep_col_pct": {"start": 62, "end": 79},\n'+
-    '  "gp_col_pct": {"start": 80, "end": 98},\n'+
-    '  "fields": [\n'+
-    '    {"page":0,"y_pct":42,"type":"cover","label":"Unternehmer Name","col":"left"},\n'+
-    '    {"page":0,"y_pct":52,"type":"cover","label":"Brutto Fr.","col":"left"},\n'+
-    '    {"page":1,"y_pct":68,"type":"ep","pos":".001","qty":1,"unit":"gl"},\n'+
-    '    {"page":1,"y_pct":68,"type":"gp","pos":".001","qty":1,"unit":"gl"},\n'+
-    '    {"page":1,"y_pct":85,"type":"total","pos":"Total 100","qty":0,"unit":""}\n'+
-    '  ]\n'+
-    '}';
+    '- ep_x_pct: left edge of the field as % of page WIDTH\n'+
+    '- ep_w_pct: width of the field as % of page WIDTH\n'+
+    '- type: "ep" | "gp" | "total" | "cover"\n'+
+    '- pos: position number or label\n'+
+    '- qty: quantity (0 for per/pauschal rows)\n'+
+    '- unit: unit string\n\n'+
+    'COVER PAGE (page with "Unternehmer", "Offertsumme", "Ort, Datum"):\n'+
+    'Identify each blank dotted line and return a field for it:\n'+
+    '  Unternehmer name line (type=cover, pos="unternehmer_name")\n'+
+    '  Unternehmer addr line 2 (type=cover, pos="unternehmer_addr")\n'+
+    '  Tel. field right side (type=cover, pos="unternehmer_tel")\n'+
+    '  Mobile field right side (type=cover, pos="unternehmer_mobile")\n'+
+    '  Sachbearbeiter dotted line (type=cover, pos="sachbearbeiter")\n'+
+    '  Offertsumme Brutto Fr. Eingabe (type=cover, pos="brutto")\n'+
+    '  Offertsumme Rabatt % (type=cover, pos="rabatt_pct")\n'+
+    '  Offertsumme Rabatt Fr. Eingabe (type=cover, pos="rabatt_fr")\n'+
+    '  Offertsumme MWST Fr. Eingabe (type=cover, pos="mwst")\n'+
+    '  Offertsumme Total Fr. Eingabe (type=cover, pos="total_fr")\n'+
+    '  Ort, Datum dotted line (type=cover, pos="ort_datum")\n'+
+    '  Unternehmer signature dotted line (type=cover, pos="unternehmer_sign")\n\n'+
+    'LV PAGES: Every "SKI A [qty] [unit] A ......." line needs ep+gp fields.\n'+
+    '"Total X" lines need one total field (use type=total).\n'+
+    '"per" rows (qty=0 or no fixed qty) need ep only.\n\n'+
+    'IMPORTANT: Return ONLY valid JSON starting with {:\n'+
+    '{"fields":[\n'+
+    '  {"page":0,"y_pct":42,"ep_x_pct":14,"ep_w_pct":40,"type":"cover","pos":"unternehmer_name","qty":0,"unit":""},\n'+
+    '  {"page":0,"y_pct":78,"ep_x_pct":38,"ep_w_pct":22,"type":"cover","pos":"brutto","qty":0,"unit":"Fr"},\n'+
+    '  {"page":1,"y_pct":65,"ep_x_pct":62,"ep_w_pct":16,"type":"ep","pos":".001","qty":10,"unit":"h"},\n'+
+    '  {"page":1,"y_pct":65,"ep_x_pct":79,"ep_w_pct":18,"type":"gp","pos":".001","qty":10,"unit":"h"},\n'+
+    '  {"page":1,"y_pct":72,"ep_x_pct":79,"ep_w_pct":18,"type":"total","pos":"Total 100","qty":0,"unit":""}\n'+
+    ']}';
 
   try{
     var resp=await fetch('https://api.anthropic.com/v1/messages',{
@@ -1076,7 +1073,7 @@ async function analyzePdfWithClaude(pdfBase64){
         'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
       body:JSON.stringify({
         model:'claude-sonnet-4-20250514',
-        max_tokens:6000,
+        max_tokens:8000,
         messages:[{role:'user',content:[
           {type:'document',source:{type:'base64',media_type:'application/pdf',data:pdfBase64}},
           {type:'text',text:prompt}
@@ -1087,13 +1084,17 @@ async function analyzePdfWithClaude(pdfBase64){
     var data=await resp.json();
     var txt=(data.content&&data.content[0]&&data.content[0].text)||'{}';
     var j0=txt.indexOf('{'), j1=txt.lastIndexOf('}')+1;
-    if(j0<0){console.error('[PDF Analysis] No JSON:',txt.slice(0,200));return null;}
+    if(j0<0){console.error('[Analysis] No JSON found. Response:',txt.slice(0,300));return null;}
     var result=JSON.parse(txt.slice(j0,j1));
-    console.log('[PDF Analysis] Found',result.fields&&result.fields.length,'fields across all pages');
-    console.log('[PDF Analysis] EP col:',result.ep_col_pct,'| GP col:',result.gp_col_pct);
+    var fields=result.fields||[];
+    console.log('[Analysis] '+fields.length+' fields across all pages');
+    // Log per page
+    var byP={};
+    fields.forEach(function(f){byP[f.page]=(byP[f.page]||0)+1;});
+    console.log('[Analysis] Per page:',JSON.stringify(byP));
     return result;
   }catch(e){
-    console.error('[PDF Analysis]',e);
+    console.error('[Analysis]',e);
     showToast('Analyse-Fehler: '+e.message,'err');
     return null;
   }
@@ -1113,30 +1114,25 @@ async function runClaudeParser(){
   window._uebertragEls={};
 
   try{
-    showView('vFill');
-    // ── STEP 1: Fetch PDF bytes and convert to base64 ──────────
+    // Step 1: Load PDF bytes → base64
     showProgress('PDF wird geladen…','',5);
     var pdfResp=await fetch(sourcePdfUrl);
     var pdfBuf=await pdfResp.arrayBuffer();
-    var pdfBytes=new Uint8Array(pdfBuf);
+    var bytes=new Uint8Array(pdfBuf);
     var b64='';
-    var chunk=8192;
-    for(var bi=0;bi<pdfBytes.length;bi+=chunk){
-      b64+=String.fromCharCode.apply(null,pdfBytes.subarray(bi,Math.min(bi+chunk,pdfBytes.length)));
+    for(var bi=0;bi<bytes.length;bi+=8192){
+      b64+=String.fromCharCode.apply(null,bytes.subarray(bi,Math.min(bi+8192,bytes.length)));
     }
     b64=btoa(b64);
     console.log('[Parser] PDF base64:',b64.length,'chars');
 
-    // ── STEP 2: Send full PDF to Claude → get ALL fields ───────
+    // Step 2: Send full PDF to Claude → get all fields
     showProgress('Claude analysiert PDF…','1 API-Call für alle Seiten',10);
     var analysis=await analyzePdfWithClaude(b64);
     if(!analysis||!analysis.fields||!analysis.fields.length){
       showToast('Keine Felder erkannt','err');
-      hideProgress(); return;
+      return;
     }
-
-    var epCol=analysis.ep_col_pct||{start:62,end:79};
-    var gpCol=analysis.gp_col_pct||{start:80,end:98};
 
     // Group fields by page
     var byPage={};
@@ -1146,14 +1142,13 @@ async function runClaudeParser(){
       byPage[p].push(f);
     });
 
-    // ── STEP 3: Render each selected page + place fields ───────
+    // Step 3: Render each page + place fields
+    showView('vFill');
     for(var i=0;i<pages.length;i++){
       var pi=pages[i];
-      var pct=10+Math.round((i/pages.length)*85);
-      showProgress('Seite '+(pi+1)+' von '+pjsDoc.numPages+' rendern…','',pct);
+      showProgress('Seite '+(pi+1)+' rendern…','',20+Math.round((i/pages.length)*70));
 
       var page=await pjsDoc.getPage(pi+1);
-      var pageH=page.getViewport({scale:1}).height;
       var vp=page.getViewport({scale:RENDER_SCALE});
       var canvas=document.createElement('canvas');
       canvas.width=vp.width; canvas.height=vp.height;
@@ -1168,54 +1163,44 @@ async function runClaudeParser(){
       wrap.appendChild(canvas); wrap.appendChild(overlay);
       document.getElementById('fillPages').appendChild(wrap);
 
-      // Place fields for this page
-      var pageFields=byPage[pi]||[];
+      // Place fields
       var cW=canvas.width, cH=canvas.height;
       var rowH=Math.round(13*RENDER_SCALE);
+      var pageFields=byPage[pi]||[];
 
-      pageFields.forEach(function(f){
+      pageFields.forEach(function(f,fi){
+        if(f.ep_x_pct===undefined||f.ep_w_pct===undefined) return;
         var cy=Math.round(cH*f.y_pct/100);
+        var isKT=f.type==='total';
+        var isCover=f.type==='cover';
+        var isGp=f.type==='gp';
+        var isEp=f.type==='ep'||isCover||isKT;
 
-        if(f.type==='cover'){
-          // Cover page field: position based on label
-          placeCoverField(overlay,f,cW,cH,rowH);
+        var box={
+          x:Math.round(cW*f.ep_x_pct/100),
+          y:cy-rowH+1,
+          w:Math.round(cW*f.ep_w_pct/100),
+          h:rowH
+        };
+
+        var key=f.pos||('p'+pi+'_'+fi);
+        if(parsedPos[key]) key+='_'+pi+'_'+fi;
+
+        // For GP fields: update existing parsedPos entry
+        if(isGp){
+          var epKey=f.pos||key;
+          if(parsedPos[epKey]){
+            parsedPos[epKey].gpBox=box;
+            mkInput(overlay,box,epKey,true,false);
+          }
           return;
         }
 
-        // EP field
-        var epX=Math.round(cW*epCol.start/100);
-        var epW=Math.round(cW*(epCol.end-epCol.start)/100);
-        var gpX=Math.round(cW*gpCol.start/100);
-        var gpW=Math.round(cW*(gpCol.end-gpCol.start)/100);
-
-        // For total fields: use GP column only
-        if(f.type==='total'){
-          var key='total_p'+pi+'_'+Math.round(f.y_pct);
-          parsedPos[key]={pos:f.pos||key,qty:0,unit:'',ep:0,status:'kapitelTotal',
-            isKapitelTotal:true,pageIdx:pi,canvasW:cW,canvasH:cH,
-            epBox:{x:gpX,y:cy-rowH+1,w:gpW,h:rowH},gpBox:null};
-          mkInput(overlay,{x:gpX,y:cy-rowH+1,w:gpW,h:rowH},key,false,true);
-          return;
-        }
-
-        // Normal EP field
-        var key=f.pos||('p'+pi+'_'+Math.round(f.y_pct));
-        if(parsedPos[key]) key+='_'+pi;
-
-        var epBox={x:epX,y:cy-rowH+1,w:epW,h:rowH};
-        var gpBox=(f.type==='gp'||f.qty>0)?{x:gpX,y:cy-rowH+1,w:gpW,h:rowH}:null;
-
-        // Only create parsedPos entry once per position (ep creates it, gp reuses it)
-        if(f.type==='ep'||!parsedPos[key]){
-          parsedPos[key]={pos:f.pos||key,qty:f.qty||0,unit:f.unit||'',
-            ep:0,status:'price',isKapitelTotal:false,
-            pageIdx:pi,canvasW:cW,canvasH:cH,epBox:epBox,gpBox:gpBox};
-          mkInput(overlay,epBox,key,false,false);
-        }
-        if(f.type==='gp'&&parsedPos[key]){
-          parsedPos[key].gpBox=gpBox;
-          if(gpBox) mkInput(overlay,gpBox,key,true,false);
-        }
+        parsedPos[key]={pos:f.pos||key,qty:f.qty||0,unit:f.unit||'',
+          ep:0,status:isKT?'kapitelTotal':isCover?'cover':'price',
+          isKapitelTotal:isKT,isCover:isCover,
+          pageIdx:pi,canvasW:cW,canvasH:cH,epBox:box,gpBox:null};
+        mkInput(overlay,box,key,false,isKT);
       });
 
       // Übertrag field
@@ -1232,75 +1217,20 @@ async function runClaudeParser(){
       }
     }
 
-    hideProgress();
     showToast('✓ '+Object.keys(parsedPos).length+' Positionen erkannt','ok');
+
   }catch(e){
-    hideProgress();
-    console.error(e);
+    console.error('[Parser]',e);
     showToast('Fehler: '+e.message,'err');
   }finally{
+    hideProgress(); // ALWAYS hide spinner
     if(btn){btn.textContent='✦ KI-Analyse';btn.disabled=false;}
   }
 }
 
-function fmtN(n){
-  if(!n&&n!==0) return '';
-  var parts=Number(n).toFixed(2).split('.');
-  parts[0]=parts[0].replace(/\B(?=(\d{3})+(?!\d))/g,"'");
-  return parts[0]+'.'+parts[1];
-}
-
-function updateUebertrag(pageIdx){
-  if(!window._uebertragEls||!window._uebertragEls[pageIdx]) return;
-  var sum=0;
-  Object.entries(parsedPos).forEach(function(kv){
-    var key=kv[0],p=kv[1];
-    if(key.indexOf('uebertrag_')===0) return;
-    if(p.pageIdx<=pageIdx&&p.ep>0&&p.qty>0&&p.status==='price') sum+=p.ep*p.qty;
-  });
-  var el=window._uebertragEls[pageIdx];
-  el.value=sum>0?fmtN(sum):'';
-  el.className='fill-field gp'+(sum>0?' filled':'');
-  if(window._uebertragEls){
-    Object.keys(window._uebertragEls).forEach(function(pi){
-      pi=parseInt(pi);
-      if(pi>pageIdx) updateUebertrag(pi);
-    });
-  }
-}
-
-
-
-
-
-function placeCoverField(overlay,f,cW,cH,rowH){
-  // Cover page fields: placed based on label
-  var labelMap={
-    'Unternehmer Name':    {x:0.15,w:0.50,row:0},
-    'Unternehmer Adresse': {x:0.15,w:0.50,row:1},
-    'Tel':                 {x:0.65,w:0.25,row:0},
-    'Mobile':              {x:0.65,w:0.25,row:1},
-    'Sachbearbeiter':      {x:0.20,w:0.45,row:0},
-    'Brutto Fr.':          {x:0.40,w:0.22,row:0},
-    'Rabatt %':            {x:0.33,w:0.06,row:0},
-    'Rabatt Fr.':          {x:0.40,w:0.22,row:0},
-    'MWST Fr.':            {x:0.40,w:0.22,row:0},
-    'Total Fr.':           {x:0.40,w:0.22,row:0},
-    'Ort Datum':           {x:0.12,w:0.30,row:0},
-    'Unternehmer Sign':    {x:0.55,w:0.35,row:0}
-  };
-  var lbl=f.label||'';
-  var cx=Math.round(cW*(f.x_pct||50)/100);
-  var cy=Math.round(cH*f.y_pct/100);
-  var cw2=Math.round(cW*(f.w_pct||20)/100);
-  var key='cover_'+lbl.replace(/\s/g,'_')+'_'+f.y_pct;
-  parsedPos[key]={pos:key,qty:0,unit:'',ep:0,status:'cover',pageIdx:f.page||0,
-    canvasW:cW,canvasH:cH,
-    epBox:{x:cx-cw2,y:cy-rowH+1,w:cw2,h:rowH},gpBox:null};
-  mkInput(overlay,{x:cx-cw2,y:cy-rowH+1,w:cw2,h:rowH},key,false,false);
-}
 
 function mkInput(overlay,box,key,isGp,isKT){
+  var isCover=parsedPos[key]&&parsedPos[key].isCover;
   var inp=document.createElement('input'); inp.type='text';
   inp.id='field-'+key+(isGp?'-gp':'');
   inp.className='fill-field';
@@ -1310,15 +1240,14 @@ function mkInput(overlay,box,key,isGp,isKT){
   inp.style.height=Math.round(box.h)+'px';
   inp.style.fontSize=Math.round(8.5*RENDER_SCALE/1.5)+'px';
   inp.style.fontFamily='var(--mono)';
-  inp.style.background=isKT?'rgba(200,220,255,0.85)':isGp?'rgba(200,240,200,0.85)':'rgba(230,245,230,0.85)';
+  inp.style.background=isKT?'rgba(200,220,255,0.9)':isGp?'rgba(200,240,200,0.9)':isCover?'rgba(255,255,200,0.9)':'rgba(235,248,235,0.9)';
   inp.style.border='none';
-  inp.style.borderBottom='1.5px solid '+(isKT?'#2255bb':isGp?'#227722':'#225588');
+  inp.style.borderBottom='1.5px solid '+(isKT?'#2255bb':isGp?'#227722':isCover?'#aa7700':'#225588');
   inp.style.outline='none'; inp.style.textAlign='right';
   inp.style.padding='0 3px'; inp.style.boxSizing='border-box'; inp.style.borderRadius='2px';
   inp.style.pointerEvents='all'; inp.style.cursor=isGp||isKT?'default':'text';
   inp.readOnly=isGp||isKT; inp.tabIndex=isGp||isKT?-1:0;
   inp.dataset.key=key; inp.dataset.isGp=isGp?'1':'0';
-
   if(!isGp&&!isKT){
     inp.addEventListener('keydown',function(ev){
       if(ev.key==='Tab'||ev.key==='Enter'){ev.preventDefault();
@@ -1358,6 +1287,32 @@ function processInput(inp,key){
   if(pp.pageIdx!==undefined) updateUebertrag(pp.pageIdx);
 }
 
+
+function fmtN(n){
+  if(!n&&n!==0) return '';
+  var parts=Number(n).toFixed(2).split('.');
+  parts[0]=parts[0].replace(/\B(?=(\d{3})+(?!\d))/g,"'");
+  return parts[0]+'.'+parts[1];
+}
+
+function updateUebertrag(pageIdx){
+  if(!window._uebertragEls||!window._uebertragEls[pageIdx]) return;
+  var sum=0;
+  Object.entries(parsedPos).forEach(function(kv){
+    var key=kv[0],p=kv[1];
+    if(key.indexOf('uebertrag_')===0) return;
+    if(p.pageIdx<=pageIdx&&p.ep>0&&p.qty>0&&p.status==='price') sum+=p.ep*p.qty;
+  });
+  var el=window._uebertragEls[pageIdx];
+  el.value=sum>0?fmtN(sum):'';
+  el.className='fill-field gp'+(sum>0?' filled':'');
+  if(window._uebertragEls){
+    Object.keys(window._uebertragEls).forEach(function(pi){
+      pi=parseInt(pi);
+      if(pi>pageIdx) updateUebertrag(pi);
+    });
+  }
+}
 
 
 async function savePdf(){

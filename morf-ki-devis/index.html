@@ -508,7 +508,7 @@ async function handleFile(file){
   var baseName=file.name.replace(/\.pdf$/i,'');
   var parsedProjNr='', parsedName='';
   var fnPatterns=[
-    /^Angebot[-_]?([0-9]{6,10})[-_](.+)$/i,  // Angebot-12345678-Name
+    /^(?:Angebot|LV)[-_]?([0-9]{6,10})[-_ ](.+)$/i,  // Angebot/LV-12345678-Name
     /^([0-9]{6,10})[-_](.+)$/,                 // 12345678-Name
     /[-_]([0-9]{6,10})[-_]/,                   // Name-12345678-Name
   ];
@@ -1324,7 +1324,8 @@ async function exportOriginalPdf(){
     var bauvorh=(document.getElementById('fBauvorhaben').value||currentPdfName.replace(/\.pdf$/i,'')||'Offerte')
                .replace(/[^a-zA-Z0-9äöüÄÖÜ\s-]/g,'').replace(/\s+/g,'-').trim();
     var morfNr=document.getElementById('fMorfProjektNr').value.trim();
-    var fn=morfNr?('Angebot-'+morfNr+'-'+bauvorh):('Ausgefuellt-'+bauvorh);
+    // Upload: LV- → Download: Angebot-
+    var fn='Angebot-'+(morfNr||parsedProjNr||'')+(morfNr||parsedProjNr?'-':'')+bauvorh;
     a.download=fn+'.pdf';
     console.log('[Export] Dateiname:', fn+'.pdf');
     a.click();

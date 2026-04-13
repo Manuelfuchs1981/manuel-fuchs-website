@@ -324,7 +324,7 @@ body{font-family:var(--font);font-size:13px;background:var(--bg);color:var(--tex
   <div class="drop-screen">
     <div class="drop-card">
       <div class="eyebrow">LV-Offerte</div>
-      <div style="font-family:var(--mono);font-size:9px;color:var(--dim);margin-bottom:8px">Deploy: 13.04.2026 08:30</div>
+      <div style="font-family:var(--mono);font-size:9px;color:var(--dim);margin-bottom:8px">Deploy: 13.04.2026 08:34</div>
       <h1>Leistungsverzeichnis<br>ausfüllen</h1>
       <div class="drop-zone" id="dropZone"
         ondragover="event.preventDefault();this.classList.add('over')"
@@ -948,7 +948,7 @@ async function runClaudeParser(){
 
           // Left-side dotted lines (x < 55%): Unternehmer, Sachbearbeiter, Ort/Datum
           var leftDots=allItems2.filter(function(it){
-            return /\.{6,}/.test(it.str)&&it.x<pageW*0.53;
+            return /\.{6,}/.test(it.str)&&it.x<pageW*0.53&&!/%/.test(it.str);
           });
           leftDots.forEach(function(dl){
             var w=Math.min(Math.max(dl.w||80,pageW*0.28),pageW*0.46);
@@ -1267,7 +1267,7 @@ function updateUebertrag(pageIdx){
 }
 
 function placeField(key,overlay,p){
-  var ep=makeField(key,'ep',p.epBox);
+  var ep=makeField(key,'ep',p.epBox,p.isCover);
   ep.addEventListener('input',function(){
     var pp=parsedPos[key]; if(!pp) return;
     var val=this.value.trim().toLowerCase();
@@ -1325,14 +1325,14 @@ function placeField(key,overlay,p){
   overlay.appendChild(del);
 }
 
-function makeField(key,type,box){
+function makeField(key,type,box,isCoverField){
   var el=document.createElement('input');
   el.type='text';el.className='fill-field'+(type==='gp'?' gp':'');
   el.dataset.key=key;el.dataset.type=type;
   el.style.left=box.x+'px';el.style.top=box.y+'px';
   el.style.width=box.w+'px';el.style.height=box.h+'px';
   el.style.fontSize='10px';
-  if(parsedPos[key]&&parsedPos[key].isCover){el.style.textAlign='left';el.style.paddingLeft='3px';el.style.paddingRight='0';el.style.background='rgba(255,252,200,0.95)';}
+  if(isCoverField){el.style.textAlign='left';el.style.paddingLeft='3px';el.style.paddingRight='0';el.style.background='rgba(255,252,200,0.95)';}
   return el;
 }
 

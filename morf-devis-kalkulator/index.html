@@ -325,7 +325,7 @@ body{font-family:var(--font);font-size:13px;background:var(--bg);color:var(--tex
   <div class="drop-screen">
     <div class="drop-card">
       <div class="eyebrow">LV-Offerte</div>
-      <div style="font-family:var(--mono);font-size:9px;color:var(--dim);margin-bottom:8px">Deploy: 13.04.2026 10:38</div>
+      <div style="font-family:var(--mono);font-size:9px;color:var(--dim);margin-bottom:8px">Deploy: 13.04.2026 10:42</div>
       <h1>Leistungsverzeichnis<br>ausfüllen</h1>
       <div class="drop-zone" id="dropZone"
         ondragover="event.preventDefault();this.classList.add('over')"
@@ -965,9 +965,8 @@ async function runClaudeParser(){
               return /\.{6,}/.test(it.str)&&it.x<pageW*0.53&&!/%/.test(it.str);
             });
             leftDots.forEach(function(dl){
-              // Clamp to page right boundary minus margin
-              var maxW=pageW*0.52-dl.x; // don't exceed 52% of page
-              var w=Math.min(dl.w||maxW,maxW);
+              // Fixed width: from dot start to 52% of page (ignore dl.w which varies)
+              var w=Math.max(pageW*0.52-dl.x, 60);
               pdfRows.push({y:line.y,text:rowTxt,
                 ep:{x:dl.x,y:dl.y,w:w,str:dl.str,h:dl.h||8},
                 gp:null,isCover:true});
@@ -978,8 +977,8 @@ async function runClaudeParser(){
               return /\.{4,}/.test(it.str)&&it.x>=pageW*0.53;
             });
             rightDots.forEach(function(dl){
-              var maxRW=pageW*0.97-dl.x; // don't exceed right margin
-              var w=Math.min(dl.w||maxRW,Math.min(maxRW,pageW*0.22));
+              // Fixed width: always same size for Tel/Mobile fields
+              var w=Math.min(pageW*0.97-dl.x, pageW*0.21);
               pdfRows.push({y:line.y,text:rowTxt,
                 ep:{x:dl.x,y:dl.y,w:w,str:dl.str,h:dl.h||8},
                 gp:null,isCover:true});
@@ -1369,7 +1368,7 @@ function makeField(key,type,box,isCoverField){
   el.style.left=box.x+'px';el.style.top=box.y+'px';
   el.style.width=box.w+'px';el.style.height=box.h+'px';
   el.style.fontSize='10px';
-  if(isCoverField){el.className+=' cover-field';el.style.background='rgba(255,252,200,0.95)';}
+  if(isCoverField){el.className+=' cover-field';el.style.textAlign='left';el.style.paddingLeft='4px';el.style.paddingRight='1px';el.style.background='rgba(255,252,200,0.95)';}
   return el;
 }
 

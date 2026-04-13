@@ -1168,11 +1168,6 @@ async function doExport(){
         // sum previous
         pos.filter(function(x){return !x.is_total&&x.ep>0&&x.qty>0;}).forEach(function(x){tgp+=x.ep*x.qty;});
         // calc section total properly
-        var sectionGP=0;
-        var inSection=false;
-        pos.forEach(function(x){
-          if(x===p){sectionGP=runningGP;inSection=true;}
-        });
         pg.drawText('Fr. '+fmtCH(p._sectionGP||0),{x:cols[5],y:y,size:8,font:fontB,color:blue});
         y-=rowH+2;
       } else {
@@ -1193,17 +1188,12 @@ async function doExport(){
       }
     });
 
-    // Pre-calculate section totals properly
-    var sectionSums=[];var running=0;var sIdx=0;
-    pos.forEach(function(p,i){
-      if(!p.is_total&&p.ep>0&&p.qty>0) running+=p.ep*p.qty;
-      if(p.is_total){p._sectionGP=running;running=0;}
+    // Pre-calculate section totals
+    var running2=0;
+    pos.forEach(function(p){
+      if(!p.is_total&&p.ep>0&&p.qty>0) running2+=p.ep*p.qty;
+      if(p.is_total){p._sectionGP=running2;running2=0;}
     });
-
-    // Re-render page 2+ with correct sums
-    // (already done inline above with _sectionGP set now)
-    // Regenerate positions pages
-    // ... simpler approach: just save and tell user sums need adjustment
 
     var bytes=await doc.save();
     var blob=new Blob([bytes],{type:'application/pdf'});

@@ -501,14 +501,28 @@ async function handleFile(file){
 
   currentPdfName=file.name;
 
-  // Parse filename: Angebot-{ProjNr}-{Bezeichnung}.pdf
-  var fnMatch=file.name.replace(/\.pdf$/i,'').match(/^Angebot-?([0-9]+)-?(.+)$/i);
+  // Parse filename - flexible patterns:
+  // Angebot-14121345-Projektname.pdf
+  // 14121345-Projektname.pdf  
+  // Angebot_14121345_Projektname.pdf
+  var baseName=file.name.replace(/\.pdf$/i,'');
   var parsedProjNr='', parsedName='';
-  if(fnMatch){
-    parsedProjNr=fnMatch[1].trim();
-    parsedName=fnMatch[2].replace(/[_-]+/g,' ').trim();
-    console.log('[Dateiname] ProjNr='+parsedProjNr+' Name='+parsedName);
+  var fnPatterns=[
+    /^Angebot[-_]?([0-9]{6,10})[-_](.+)$/i,  // Angebot-12345678-Name
+    /^([0-9]{6,10})[-_](.+)$/,                 // 12345678-Name
+    /[-_]([0-9]{6,10})[-_]/,                   // Name-12345678-Name
+  ];
+  for(var pi2=0;pi2<fnPatterns.length;pi2++){
+    var m=baseName.match(fnPatterns[pi2]);
+    if(m){
+      parsedProjNr=(m[1]||'').trim();
+      parsedName=(m[2]||baseName).replace(/[-_]+/g,' ').trim();
+      break;
+    }
   }
+  // If no project number found, use full filename as name
+  if(!parsedName) parsedName=baseName.replace(/[-_]+/g,' ').trim();
+  console.log('[Dateiname] ProjNr="'+parsedProjNr+'" Name="'+parsedName+'"');
 
   showSpinner('PDF wird gelesen...');
   var isTestMode=window._testMode||false;
@@ -539,8 +553,15 @@ async function handleFile(file){
     };
     hideSpinner();
     renderOfferte(mockOfferte);
-    if(parsedProjNr){document.getElementById('fMorfProjektNr').value=parsedProjNr;onMorfProjNrInput(parsedProjNr);}
-    showToast('✓ Test-Modus: Filiale erkannt, Felder gesetzt. Export-Dateiname testen mit ⬇','ok');
+    if(parsedProjNr){
+      document.getElementById('fMorfProjektNr').value=parsedProjNr;
+      onMorfProjNrInput(parsedProjNr);
+      showToast('✓ Test-Modus aktiv. Filiale erkannt: '+document.getElementById('fFiliale').value,'ok');
+    } else {
+      showToast('Test-Modus aktiv — Morf Projekt-Nr. manuell eingeben (z.B. 14121345)','info');
+      document.getElementById('fMorfProjektNr').style.borderColor='var(--accent)';
+      document.getElementById('fMorfProjektNr').focus();
+    }
     return;
   }
 
@@ -564,6 +585,9 @@ async function handleFile(file){
     if(parsedProjNr){
       document.getElementById('fMorfProjektNr').value=parsedProjNr;
       onMorfProjNrInput(parsedProjNr);
+    } else {
+      // Highlight the field so user knows to enter it
+      document.getElementById('fMorfProjektNr').style.borderColor='var(--accent)';
     }
     if(parsedName&&!result.offerte.bauvorhaben){
       document.getElementById('fBauvorhaben').value=parsedName;

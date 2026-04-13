@@ -325,7 +325,7 @@ body{font-family:var(--font);font-size:13px;background:var(--bg);color:var(--tex
   <div class="drop-screen">
     <div class="drop-card">
       <div class="eyebrow">LV-Offerte</div>
-      <div style="font-family:var(--mono);font-size:9px;color:var(--dim);margin-bottom:8px">Deploy: 13.04.2026 10:33</div>
+      <div style="font-family:var(--mono);font-size:9px;color:var(--dim);margin-bottom:8px">Deploy: 13.04.2026 10:38</div>
       <h1>Leistungsverzeichnis<br>ausfüllen</h1>
       <div class="drop-zone" id="dropZone"
         ondragover="event.preventDefault();this.classList.add('over')"
@@ -1282,52 +1282,74 @@ function updateUebertrag(pageIdx){
 
 function placeField(key,overlay,p){
   var ep=makeField(key,'ep',p.epBox,p.isCover);
-  ep.addEventListener('input',function(){
-    var pp=parsedPos[key]; if(!pp) return;
-    var val=this.value.trim().toLowerCase();
-    var gpEl=overlay.querySelector('.fill-field.gp[data-key="'+key+'"]');
-    if(val==='k'||val==='ka'||val==='k.a.'||val==='k. a.'){
-      pp.status='ka';pp.ep=0;this.className='fill-field ka';this.value='k. A.';
-      if(gpEl)gpEl.value='';
-    } else if(val==='b'||val==='bauseits'){
-      pp.status='bauseits';pp.ep=0;this.className='fill-field bauseits';this.value='bauseits';
-      if(gpEl)gpEl.value='';
-    } else if(val==='i'||val==='inkl.'||val==='inkl'){
-      pp.status='inkl';pp.ep=0;this.className='fill-field bauseits';this.value='inkl.';
-      if(gpEl)gpEl.value='';
-    } else {
-      var n=parseFloat(val.replace(/[' ]/g,'').replace(',','.'));
-      if(!isNaN(n)&&n>0){
-        pp.ep=n;pp.status='price';this.className='fill-field filled';
-        if(gpEl&&pp.qty>0){gpEl.value=fmtN(n*pp.qty);gpEl.className='fill-field gp filled';}
-      } else if(val===''){
-        pp.ep=0;pp.status='price';this.className='fill-field';
-        if(gpEl){gpEl.value='';gpEl.className='fill-field gp';}
+
+  if(p.isCover){
+    // ── Cover fields: plain text, no price shortcuts, no number formatting ──
+    ep.addEventListener('input',function(){
+      var pp=parsedPos[key]; if(!pp) return;
+      pp.coverText=this.value;
+    });
+    ep.addEventListener('blur',function(){
+      // no formatting for cover fields
+    });
+    ep.addEventListener('keydown',function(e){
+      if(e.key==='Tab'||e.key==='Enter'){
+        e.preventDefault();
+        var all=Array.from(document.querySelectorAll('.fill-field:not(.gp)'));
+        var i2=all.indexOf(this);
+        if(i2>=0&&i2<all.length-1){all[i2+1].focus();}
       }
-    }
-    updateUebertrag(pp.pageIdx);
-  });
-  ep.addEventListener('focus',function(){
-    var pp=parsedPos[key];
-    if(pp&&pp.ep>0&&pp.status==='price'){this.value=pp.ep.toString();this.select();}
-  });
-  ep.addEventListener('blur',function(){
-    var pp=parsedPos[key];
-    if(pp&&pp.status==='price'){
-      if(pp.ep>0) this.value=fmtN(pp.ep);
-      else if(this.value==='0') this.value='0.00';
-    }
-  });
-  ep.addEventListener('keydown',function(e){
-    if(e.key==='Tab'||e.key==='Enter'){
-      e.preventDefault();
-      var all=Array.from(document.querySelectorAll('.fill-field:not(.gp)'));
-      var idx2=all.indexOf(this);
-      if(idx2>=0&&idx2<all.length-1){all[idx2+1].focus();all[idx2+1].select();}
-    }
-  });
+    });
+  } else {
+    // ── Price fields: full price logic ──
+    ep.addEventListener('input',function(){
+      var pp=parsedPos[key]; if(!pp) return;
+      var val=this.value.trim().toLowerCase();
+      var gpEl=overlay.querySelector('.fill-field.gp[data-key="'+key+'"]');
+      if(val==='k'||val==='ka'||val==='k.a.'||val==='k. a.'){
+        pp.status='ka';pp.ep=0;this.className='fill-field ka';this.value='k. A.';
+        if(gpEl)gpEl.value='';
+      } else if(val==='b'||val==='bauseits'){
+        pp.status='bauseits';pp.ep=0;this.className='fill-field bauseits';this.value='bauseits';
+        if(gpEl)gpEl.value='';
+      } else if(val==='i'||val==='inkl.'||val==='inkl'){
+        pp.status='inkl';pp.ep=0;this.className='fill-field bauseits';this.value='inkl.';
+        if(gpEl)gpEl.value='';
+      } else {
+        var n=parseFloat(val.replace(/[' ]/g,'').replace(',','.'));
+        if(!isNaN(n)&&n>0){
+          pp.ep=n;pp.status='price';this.className='fill-field filled';
+          if(gpEl&&pp.qty>0){gpEl.value=fmtN(n*pp.qty);gpEl.className='fill-field gp filled';}
+        } else if(val===''){
+          pp.ep=0;pp.status='price';this.className='fill-field';
+          if(gpEl){gpEl.value='';gpEl.className='fill-field gp';}
+        }
+      }
+      updateUebertrag(pp.pageIdx);
+    });
+    ep.addEventListener('focus',function(){
+      var pp=parsedPos[key];
+      if(pp&&pp.ep>0&&pp.status==='price'){this.value=pp.ep.toString();this.select();}
+    });
+    ep.addEventListener('blur',function(){
+      var pp=parsedPos[key];
+      if(pp&&pp.status==='price'){
+        if(pp.ep>0) this.value=fmtN(pp.ep);
+        else if(this.value==='0') this.value='0.00';
+      }
+    });
+    ep.addEventListener('keydown',function(e){
+      if(e.key==='Tab'||e.key==='Enter'){
+        e.preventDefault();
+        var all=Array.from(document.querySelectorAll('.fill-field:not(.gp)'));
+        var idx2=all.indexOf(this);
+        if(idx2>=0&&idx2<all.length-1){all[idx2+1].focus();all[idx2+1].select();}
+      }
+    });
+  }
+
   overlay.appendChild(ep);
-  if(p.gpBox){var gp=makeField(key,'gp',p.gpBox);gp.readOnly=true;gp.tabIndex=-1;overlay.appendChild(gp);}
+  if(p.gpBox){var gp=makeField(key,'gp',p.gpBox,p.isCover);gp.readOnly=true;gp.tabIndex=-1;overlay.appendChild(gp);}
   var del=document.createElement('button');
   del.className='del-btn';del.textContent='\u00d7';del.title='Ausblenden';
   var box=p.gpBox||p.epBox;
@@ -1338,6 +1360,7 @@ function placeField(key,overlay,p){
   });
   overlay.appendChild(del);
 }
+
 
 function makeField(key,type,box,isCoverField){
   var el=document.createElement('input');

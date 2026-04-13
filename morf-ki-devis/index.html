@@ -642,24 +642,74 @@ async function showHistory(){
   document.getElementById('uploadZone').style.display='none';
   document.getElementById('analyseScreen').style.display='none';
   document.getElementById('historyPanel').style.display='block';
+  document.getElementById('exportBtn').style.display='none';
+  document.getElementById('saveBtn').style.display='none';
 
-  var {data,error}=await supabase.from('offerten')
+  var {data}=await supabase.from('offerten')
     .select('*').order('created_at',{ascending:false}).limit(50);
 
   var el=document.getElementById('historyContent');
-  if(!data||!data.length){el.innerHTML='<p style="color:var(--text2)">Noch keine Offerten gespeichert.</p>';return;}
+  if(!data||!data.length){
+    el.innerHTML='<p style="color:var(--text2);padding:20px">Noch keine Offerten gespeichert.<br>Lade ein PDF hoch und klicke "Speichern".</p>';
+    return;
+  }
 
   el.innerHTML='<table class="hist-table"><thead><tr>'+
-    '<th>Bauvorhaben</th><th>Projekt-Nr.</th><th>Datum</th><th>Brutto</th><th>Datei</th>'+
-    '</tr></thead><tbody>'+
-    data.map(function(o){return '<tr>'+
-      '<td>'+esc(o.bauvorhaben||o.titel||'–')+'</td>'+
-      '<td style="font-family:var(--mono)">'+esc(o.projekt_nr||'–')+'</td>'+
+    '<th>Bauvorhaben</th><th>Projekt-Nr.</th><th>Datum</th><th>Brutto</th><th>Positionen</th><th></th>'+
+    '</tr></thead><tbody id="histRows"></tbody></table>';
+
+  // Load position counts per offerte
+  var ids=data.map(function(o){return o.id;});
+  var {data:posCounts}=await supabase.from('positionen')
+    .select('offerte_id').in('offerte_id',ids);
+
+  var countMap={};
+  (posCounts||[]).forEach(function(p){countMap[p.offerte_id]=(countMap[p.offerte_id]||0)+1;});
+
+  var rows='';
+  data.forEach(function(o){
+    rows+='<tr onclick="loadOfferte(''+o.id+'')" style="cursor:pointer" title="Klicken zum Öffnen">'+
+      '<td><strong>'+esc(o.bauvorhaben||o.titel||'–')+'</strong></td>'+
+      '<td style="font-family:var(--mono);color:var(--text2)">'+esc(o.projekt_nr||'–')+'</td>'+
       '<td>'+esc(o.datum||'–')+'</td>'+
       '<td style="font-family:var(--mono)">'+((o.brutto||0)>0?'Fr. '+fmtN(o.brutto):'–')+'</td>'+
-      '<td style="color:var(--text3);font-size:11px">'+esc(o.pdf_name||'–')+'</td>'+
-      '</tr>';}).join('')+
-    '</tbody></table>';
+      '<td style="color:var(--text2)">'+(countMap[o.id]||0)+' Pos.</td>'+
+      '<td><button class="btn" onclick="event.stopPropagation();loadOfferte(''+o.id+'')">Öffnen →</button></td>'+
+      '</tr>';
+  });
+  document.getElementById('histRows').innerHTML=rows;
+}
+
+async function loadOfferte(offerteId){
+  showSpinner('Offerte wird geladen...');
+  try{
+    // Load offerte
+    var {data:o}=await supabase.from('offerten').select('*').eq('id',offerteId).single();
+    // Load positionen
+    var {data:pos}=await supabase.from('positionen')
+      .select('*').eq('offerte_id',offerteId).order('created_at',{ascending:true});
+
+    // Rebuild offerte object
+    var offerte={
+      bauvorhaben: o.bauvorhaben||o.titel,
+      bauleiter: o.bauleiter,
+      projekt_nr: o.projekt_nr,
+      datum: o.datum,
+      brutto: o.brutto,
+      deckblatt:{},
+      positionen: (pos||[]).map(function(p){
+        return {pos_nr:p.pos_nr,beschreibung:p.beschreibung,qty:p.qty,
+          unit:p.unit,ep:p.ep,gp:p.gp,is_total:false,hat_vorschlag:false};
+      })
+    };
+    currentPdfName=o.pdf_name||'';
+    hideSpinner();
+    renderOfferte(offerte);
+    showToast('✓ Offerte geladen: '+offerte.bauvorhaben,'ok');
+  }catch(e){
+    hideSpinner();
+    showToast('Fehler: '+e.message,'err');
+  }
 }
 
 // ── PDF EXPORT ──────────────────────────────────────────────

@@ -332,6 +332,7 @@ input[type=file]{display:none}
         <div class="form-group"><label class="form-label">Tel.</label><input class="form-input" id="fTel" placeholder="+41 44 852 30 00"></div>
         <div class="form-group"><label class="form-label">Mobile</label><input class="form-input" id="fMobile" placeholder=""></div>
         <div class="form-group"><label class="form-label">Sachbearbeiter</label><input class="form-input" id="fSachb" placeholder=""></div>
+        <div class="form-group"><label class="form-label">E-Mail Sachbearbeiter</label><input class="form-input" id="fEmail" placeholder="manuel.fuchs@morf-ag.ch"></div>
         <div class="form-group"><label class="form-label">Ort, Datum</label><input class="form-input" id="fOrtDatum" placeholder="Oberglatt, TT.MM.JJJJ"></div>
         <div class="form-group"><label class="form-label">Rabatt %</label><input class="form-input" id="fRabattPct" type="number" placeholder="0" oninput="recalcSummen()"></div>
       </div>
@@ -409,14 +410,15 @@ var SB_URL='https://mwwrfwalfqjnyapowdlu.supabase.co';
 var SB_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im13d3Jmd2FsZnFqbnlhcG93ZGx1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU5ODU0ODMsImV4cCI6MjA5MTU2MTQ4M30.9K_36ccGPa2dGzGIFyf-mEANfgHdA7E6YlYkBn5tl-Y';
 var EDGE_URL=SB_URL+'/functions/v1/analyse-offerte';
 var MORF={name:'Karl Morf AG',addr1:'Aspstrasse 6',addr2:'8154 Oberglatt',tel:'+41 44 852 30 00'};
+var SACHBEARBEITER_EMAIL='manuel.fuchs@morf-ag.ch';
 var PROJ_FILIALE={
-  '121':{code:'FZH',name:'Filiale Zürich',          ort:'Oberglatt',    addr1:'Aspstrasse 6',       addr2:'8154 Oberglatt',    tel:'+41 44 852 30 00'},
-  '131':{code:'FAG',name:'Filiale Aargau',          ort:'Oberentfelden',addr1:'Bergstrasse 65',     addr2:'5036 Oberentfelden',tel:'+41 62 723 42 70'},
-  '141':{code:'FGL',name:'Filiale Glarus',          ort:'Niederurnen',  addr1:'Brunnernstrasse 9',  addr2:'8867 Niederurnen',  tel:'+41 55 614 16 64'},
-  '151':{code:'FGR',name:'Filiale Graubünden',      ort:'Trimmis',      addr1:'Cholplatzweg 9',     addr2:'7203 Trimmis',      tel:'+41 81 353 79 33'},
-  '171':{code:'FSG',name:'Filiale St. Gallen',      ort:'Waldkirch',    addr1:'Hauptwilerstrasse 8',addr2:'9205 Waldkirch',    tel:'+41 71 278 78 20'},
-  '181':{code:'FZS',name:'Filiale Zentralschweiz',  ort:'Cham',         addr1:'Riedstrasse 9',      addr2:'6330 Cham',         tel:'+41 41 743 23 63'},
-  '191':{code:'DAV',name:'DAV-Zürich',              ort:'Zürich',       addr1:'Aspstrasse 6',       addr2:'8154 Oberglatt',    tel:'+41 44 852 30 00'},
+  '121':{code:'FZH',name:'Filiale Zürich',          ort:'Oberglatt',    addr1:'Aspstrasse 6',       addr2:'8154 Oberglatt',    tel:'+41 44 852 30 00',email:'zuerich@morf-ag.ch'},
+  '131':{code:'FAG',name:'Filiale Aargau',          ort:'Oberentfelden',addr1:'Bergstrasse 65',     addr2:'5036 Oberentfelden',tel:'+41 62 723 42 70',email:'aargau@morf-ag.ch'},
+  '141':{code:'FGL',name:'Filiale Glarus',          ort:'Niederurnen',  addr1:'Brunnernstrasse 9',  addr2:'8867 Niederurnen',  tel:'+41 55 614 16 64',email:'glarus@morf-ag.ch'},
+  '151':{code:'FGR',name:'Filiale Graubünden',      ort:'Trimmis',      addr1:'Cholplatzweg 9',     addr2:'7203 Trimmis',      tel:'+41 81 353 79 33',email:'graubuenden@morf-ag.ch'},
+  '171':{code:'FSG',name:'Filiale St. Gallen',      ort:'Waldkirch',    addr1:'Hauptwilerstrasse 8',addr2:'9205 Waldkirch',    tel:'+41 71 278 78 20',email:'st.gallen@morf-ag.ch'},
+  '181':{code:'FZS',name:'Filiale Zentralschweiz',  ort:'Cham',         addr1:'Riedstrasse 9',      addr2:'6330 Cham',         tel:'+41 41 743 23 63',email:'zentralschweiz@morf-ag.ch'},
+  '191':{code:'DAV',name:'DAV-Zürich',              ort:'Zürich',       addr1:'Aspstrasse 6',       addr2:'8154 Oberglatt',    tel:'+41 44 852 30 00',email:'zuerich@morf-ag.ch'},
 };
 function getFilialeByProjNr(nr){
   var prefix=String(nr||'').slice(0,3);
@@ -651,6 +653,7 @@ function onMorfProjNrInput(val){
   document.getElementById('fAddr2').value=fil.addr2;
   document.getElementById('fTel').value=fil.tel;
   document.getElementById('fOrtDatum').value=fil.ort+', '+getTodayStr();
+  if(fil.email) document.getElementById('fEmail').value=fil.email.replace('@morf-ag.ch','')+'@morf-ag.ch';
   showToast('✓ '+fil.name+' erkannt — Adresse gesetzt','ok');
 }
 function getTodayStr(){

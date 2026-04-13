@@ -937,8 +937,77 @@ async function renderLVFill(){
   }
 
   document.getElementById('lvStatusDot').className='status-dot done';
-  document.getElementById('lvStatusMsg').textContent=
-    Object.keys(parsedPos).length+' Felder platziert — EP eintragen, GP berechnet sich automatisch';
+  var nFields=Object.keys(parsedPos).length;
+  document.getElementById('lvStatusMsg').textContent=nFields+' Felder platziert — Deckblatt-Werte wurden vorausgefüllt';
+
+  // Auto-fill cover fields from the Deckblatt form
+  autoFillCoverFields();
+}
+
+function autoFillCoverFields(){
+  // Map form values to cover field labels
+  var formVals={
+    'karl morf':document.getElementById('fName').value,
+    'aspstrasse':document.getElementById('fAddr1').value,
+    'oberglatt':document.getElementById('fAddr2').value,
+    'unternehmer':document.getElementById('fName').value,
+  };
+  var tel=document.getElementById('fTel').value;
+  var mobile=document.getElementById('fMobile').value;
+  var sachb=document.getElementById('fSachb').value;
+  var ortdatum=document.getElementById('fOrtDatum').value;
+
+  // Get all cover fields sorted by Y position (top to bottom)
+  var coverKeys=Object.keys(parsedPos).filter(function(k){
+    return parsedPos[k].status==='cover';
+  }).sort(function(a,b){
+    var pa=parsedPos[a], pb=parsedPos[b];
+    if(pa.pageIdx!==pb.pageIdx) return pa.pageIdx-pb.pageIdx;
+    return pa.epBox.y-pb.epBox.y;
+  });
+
+  // Left fields (Unternehmer lines): fill with name, addr1, addr2
+  var leftKeys=coverKeys.filter(function(k){
+    var pp=parsedPos[k];
+    return pp.epBox.x<pp.canvasW*0.5&&!pp.pos.match(/tel|mobile|fr\.|brutto|rabatt|mwst|total|sachb|ort/i);
+  });
+
+  var leftVals=[
+    document.getElementById('fName').value,
+    document.getElementById('fAddr1').value,
+    document.getElementById('fAddr2').value
+  ];
+  leftKeys.slice(0,3).forEach(function(k,i){
+    var el=document.getElementById('ef-'+k);
+    if(el&&leftVals[i]){el.value=leftVals[i];parsedPos[k].coverText=leftVals[i];}
+  });
+
+  // Right fields: Tel then Mobile
+  var rightKeys=coverKeys.filter(function(k){
+    return parsedPos[k].epBox.x>parsedPos[k].canvasW*0.5;
+  });
+  if(rightKeys[0]&&tel){
+    var el=document.getElementById('ef-'+rightKeys[0]);
+    if(el){el.value=tel;parsedPos[rightKeys[0]].coverText=tel;}
+  }
+  if(rightKeys[1]&&mobile){
+    var el=document.getElementById('ef-'+rightKeys[1]);
+    if(el){el.value=mobile;parsedPos[rightKeys[1]].coverText=mobile;}
+  }
+
+  // Sachbearbeiter field
+  var sachKeys=coverKeys.filter(function(k){return /sachb/i.test(parsedPos[k].pos);});
+  if(sachKeys.length&&sachb){
+    var el=document.getElementById('ef-'+sachKeys[0]);
+    if(el){el.value=sachb;parsedPos[sachKeys[0]].coverText=sachb;}
+  }
+
+  // Ort/Datum field
+  var ortKeys=coverKeys.filter(function(k){return /ort|datum/i.test(parsedPos[k].pos);});
+  if(ortKeys.length&&ortdatum){
+    var el=document.getElementById('ef-'+ortKeys[0]);
+    if(el){el.value=ortdatum;parsedPos[ortKeys[0]].coverText=ortdatum;}
+  }
 }
 
 function renderCoverFields(overlay,lines,pageW,pageH,pi){
@@ -953,13 +1022,13 @@ function renderCoverFields(overlay,lines,pageW,pageH,pi){
     // Left dotted fields (Unternehmer, Sachbearbeiter, Ort/Datum)
     if(!hasFr){
       var ldots=line.items.filter(function(it){
-        return /\.{6,}/.test(it.str)&&it.x<pageW*0.55&&!/%/.test(it.str);
+        return /\.{5,}/.test(it.str)&&it.x<pageW*0.60&&!/%/.test(it.str);
       });
       ldots.forEach(function(dl){
         var fw=Math.max(pageW*0.52-dl.x,pageW*0.30);
         var key='cov_l_'+pi+'_'+Math.round(dl.x)+'_'+Math.round(line.y);
         var box={x:Math.round(dl.x*S),y:canvasY-rowH+1,w:Math.round(fw*S),h:rowH};
-        parsedPos[key]={pos:rowTxt,qty:0,unit:'',ep:0,status:'cover',pageIdx:pi,epBox:box};
+        parsedPos[key]={pos:rowTxt,qty:0,unit:'',ep:0,status:'cover',pageIdx:pi,epBox:box,canvasW:vp.width,canvasH:vp.height};
         placeField(overlay,key,box,null,'cover');
       });
       // Right dotted fields (Tel, Mobile)
@@ -970,7 +1039,7 @@ function renderCoverFields(overlay,lines,pageW,pageH,pi){
         var fw=Math.min(pageW*0.95-dl.x,pageW*0.20);
         var key='cov_r_'+pi+'_'+Math.round(dl.x)+'_'+Math.round(line.y);
         var box={x:Math.round(dl.x*S),y:canvasY-rowH+1,w:Math.round(fw*S),h:rowH};
-        parsedPos[key]={pos:rowTxt,qty:0,unit:'',ep:0,status:'cover',pageIdx:pi,epBox:box};
+        parsedPos[key]={pos:rowTxt,qty:0,unit:'',ep:0,status:'cover',pageIdx:pi,epBox:box,canvasW:vp.width,canvasH:vp.height};
         placeField(overlay,key,box,null,'cover');
       });
     }
@@ -1101,10 +1170,10 @@ async function exportOriginalPdf(){
       var pH=page.getHeight();
       var sz=8;
 
-      // Get value from input field
+      // Get value from input field or stored coverText
       var epEl=document.getElementById('ef-'+key);
-      var val=epEl?epEl.value.trim():'';
-      if(!val||val==='–') return;
+      var val=epEl?epEl.value.trim():(pp.coverText||'');
+      if(!val||val==='–'||val==='') return;
 
       // Convert canvas coords back to PDF coords
       var pdfX=pp.epBox.x/S;

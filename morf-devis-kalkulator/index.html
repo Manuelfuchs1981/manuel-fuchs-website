@@ -324,7 +324,7 @@ body{font-family:var(--font);font-size:13px;background:var(--bg);color:var(--tex
   <div class="drop-screen">
     <div class="drop-card">
       <div class="eyebrow">LV-Offerte</div>
-      <div style="font-family:var(--mono);font-size:9px;color:var(--dim);margin-bottom:8px">Deploy: 13.04.2026 08:25</div>
+      <div style="font-family:var(--mono);font-size:9px;color:var(--dim);margin-bottom:8px">Deploy: 13.04.2026 08:30</div>
       <h1>Leistungsverzeichnis<br>ausfüllen</h1>
       <div class="drop-zone" id="dropZone"
         ondragover="event.preventDefault();this.classList.add('over')"
@@ -927,135 +927,144 @@ async function runClaudeParser(){
         }
       }
 
-      // ── COVER PAGE DETECTION ─────────────────────────────────
-      // Detect if this is a cover page (Deckblatt) by checking for known labels
+      // ─────────────────────────────────────────────────────────
+      var dotThresholdX=pageW*0.55;
+      var uebertragRow=null;
+      var pdfRows=[];
+
+      // ── COVER PAGE ─────────────────────────────────────────────
+      // Detect cover page by presence of known label keywords
       var isCoverPage=pi===0&&lines.some(function(ln){
         return ln.items.some(function(it){
           return /\b(unternehmer|offertsumme|sachbearbeiter)\b/i.test(it.str);
         });
       });
 
-      var uebertragRow=null;
-      var pdfRows=[];
-
       if(isCoverPage){
-        // Cover page: scan ALL lines for dotted areas, classify by context
         lines.forEach(function(line){
-          var allDots=line.items.filter(function(it){return /\.{5,}/.test(it.str);});
-          if(!allDots.length) return;
-          var rowTxt=line.items.filter(function(it){return !/\.{3,}/.test(it.str);})
-                       .map(function(it){return it.str;}).join(' ').trim();
+          var allItems2=line.items;
+          var rowTxt=allItems2.filter(function(it){return !/\.{3,}/.test(it.str);})
+                              .map(function(it){return it.str;}).join(' ').trim();
 
-          allDots.forEach(function(dl){
-            var isRight=dl.x>pageW*0.55;
-            // Skip right-side dots that are Revidiert column (Fr. context already handled)
-            var hasFrLeft=line.items.some(function(it){
-              return /^Fr\.?$/.test(it.str.trim())&&it.x<dl.x;
-            });
-            if(isRight&&!hasFrLeft) return; // only keep SFr/Fr. right-side dots
-
-            var isCoverField=true;
-            var covW=isRight
-              ? Math.min(dl.w||60, pageW*0.25)   // right fields: narrow
-              : Math.min(Math.max(dl.w||60,pageW*0.3),pageW*0.48); // left fields: limited width
+          // Left-side dotted lines (x < 55%): Unternehmer, Sachbearbeiter, Ort/Datum
+          var leftDots=allItems2.filter(function(it){
+            return /\.{6,}/.test(it.str)&&it.x<pageW*0.53;
+          });
+          leftDots.forEach(function(dl){
+            var w=Math.min(Math.max(dl.w||80,pageW*0.28),pageW*0.46);
             pdfRows.push({y:line.y,text:rowTxt,
-              ep:{x:dl.x,y:dl.y,w:covW,str:dl.str,h:dl.h||8},
+              ep:{x:dl.x,y:dl.y,w:w,str:dl.str,h:dl.h||8},
               gp:null,isCover:true});
           });
-        });
-        // Also detect SFr./Fr. rows (Offertsumme) via existing right-side logic
-        lines.forEach(function(line){
-          var priceLabel=line.items.filter(function(it){
-            return /SFr\.?|Fr\.|CHF/i.test(it.str)&&it.x>=pageW*0.35;
-          });
-          if(!priceLabel.length) return;
-          var rowTxt=line.items.filter(function(it){
-            return !/SFr\.?|Fr\.|CHF|\.{3,}/i.test(it.str);
-          }).map(function(it){return it.str;}).join(' ').trim();
-          priceLabel.forEach(function(lbl){
-            var dots=line.items.filter(function(it){
-              return /\.{4,}/.test(it.str)&&it.x>lbl.x;
+
+          // Right-side dotted lines (x >= 55%): Tel, Mobile
+          // Only if NOT an Offertsumme row (no Fr. label)
+          var hasFr=allItems2.some(function(it){return /^Fr\.?$/i.test(it.str.trim());});
+          if(!hasFr){
+            var rightDots=allItems2.filter(function(it){
+              return /\.{5,}/.test(it.str)&&it.x>=pageW*0.55;
             });
-            if(dots.length){
-              var epDot={x:dots[0].x,y:lbl.y,w:dots[0].w||pageW*0.18,str:dots[0].str,h:lbl.h||8};
-              var gpDot=dots.length>1?{x:dots[1].x,y:lbl.y,w:dots[1].w||pageW*0.18,str:dots[1].str,h:lbl.h||8}:null;
-              // Avoid duplicate with cover dots already added
-              var alreadyAdded=pdfRows.some(function(r){return Math.abs(r.y-line.y)<3&&Math.abs(r.ep.x-epDot.x)<5;});
-              if(!alreadyAdded) pdfRows.push({y:line.y,text:rowTxt,ep:epDot,gp:gpDot,isCover:true});
-            }
-          });
+            rightDots.forEach(function(dl){
+              var w=Math.min(dl.w||60,pageW*0.23);
+              pdfRows.push({y:line.y,text:rowTxt,
+                ep:{x:dl.x,y:dl.y,w:w,str:dl.str,h:dl.h||8},
+                gp:null,isCover:true});
+            });
+          }
+
+          // Offertsumme: Fr. + dots → EP (Eingabe) and GP (Revidiert)
+          if(hasFr){
+            var frItems=allItems2.filter(function(it){return /^Fr\.?$/i.test(it.str.trim());});
+            frItems.forEach(function(fr){
+              var dotsAfter=allItems2.filter(function(it){
+                return /\.{4,}/.test(it.str)&&it.x>fr.x;
+              });
+              if(!dotsAfter.length) return;
+              var d=dotsAfter[0];
+              var w=Math.min(d.w||pageW*0.18,pageW*0.22);
+              var alreadyAdded=pdfRows.some(function(r){
+                return Math.abs(r.y-line.y)<3&&Math.abs(r.ep.x-d.x)<5;
+              });
+              if(!alreadyAdded) pdfRows.push({y:line.y,text:rowTxt,
+                ep:{x:d.x,y:d.y,w:w,str:d.str,h:d.h||8},
+                gp:null,isCover:true});
+            });
+          }
         });
 
       } else {
-        // ── LV PAGE DETECTION ───────────────────────────────────
-        // Detect BauPlus format: pages with "SKI" items
+        // ── LV PAGES ───────────────────────────────────────────────
+        // Detect BauPlus format (SKI marker)
         var isBauPlusPage=allItems.some(function(it){return it.str==='SKI';});
 
-        // For BauPlus: find column layout from first price row
-        var bauPlusEpX=null, bauPlusEpW=null, bauPlusGpX=null, bauPlusGpW=null;
+        // Measure BauPlus column positions from first price row
+        var bauEpX=null,bauEpW=null,bauGpX=null,bauGpW=null;
         if(isBauPlusPage){
-          lines.forEach(function(line){
-            if(bauPlusEpX!==null) return; // found already
-            var hasSki=line.items.some(function(it){return it.str==='SKI';});
-            if(!hasSki) return;
-            // Find last "A" item right of 50%
-            var aItems=line.items.filter(function(it){return it.str.trim()==='A'&&it.x>pageW*0.5;});
-            if(!aItems.length) return;
+          for(var li=0;li<lines.length;li++){
+            var ln=lines[li];
+            var hasSki=ln.items.some(function(it){return it.str==='SKI';});
+            if(!hasSki) continue;
+            // Find all "A" items right of 50% (last one = price separator)
+            var aItems=ln.items.filter(function(it){
+              return it.str.trim()==='A'&&it.x>pageW*0.48;
+            });
+            if(!aItems.length) continue;
             var lastA=aItems[aItems.length-1];
-            var afterA=lastA.x+(lastA.w||6)+3;
-            var available=pageW-afterA-5;
-            // Split available space into EP (45%) and GP (45%) with gap
-            bauPlusEpX=afterA;
-            bauPlusEpW=available*0.47;
-            bauPlusGpX=afterA+available*0.5;
-            bauPlusGpW=available*0.47;
-            console.log('[BauPlus] Cols detected: EP='+Math.round(bauPlusEpX)+' GP='+Math.round(bauPlusGpX));
-          });
+            var start=lastA.x+(lastA.w||6)+2;
+            var avail=pageW-start-4;
+            if(avail<50) continue; // too narrow, skip
+            bauEpX=start; bauEpW=avail*0.47;
+            bauGpX=start+avail*0.51; bauGpW=avail*0.47;
+            console.log('[BauPlus] EP='+Math.round(bauEpX)+' GP='+Math.round(bauGpX)+' avail='+Math.round(avail));
+            break;
+          }
         }
 
-        var dotThresholdX=pageW*0.55;
-
         lines.forEach(function(line){
-          // --- Multi-dot split: "...... ......" as one item → two items
-          var rawDots=line.items.filter(function(it){return /\.{4,}/.test(it.str)&&it.x>=dotThresholdX;});
+          // Multi-dot split: "...... ......" as single item → split
+          var rawDots=line.items.filter(function(it){
+            return /\.{4,}/.test(it.str)&&it.x>=dotThresholdX;
+          });
           var dots=[];
           rawDots.forEach(function(it){
             var groups=it.str.split(/\s+/).filter(function(p){return /\.{4,}/.test(p);});
             if(groups.length<=1){dots.push(it);return;}
             var cw2=(it.w||60)/Math.max(it.str.length,1);
-            groups.forEach(function(grp,gi){
-              var gx=it.x+it.str.indexOf(grp)*cw2;
-              dots.push({str:grp,x:gx,y:it.y,w:grp.length*cw2,h:it.h||8});
+            groups.forEach(function(grp){
+              var gi=it.str.indexOf(grp);
+              dots.push({str:grp,x:it.x+gi*cw2,y:it.y,w:grp.length*cw2,h:it.h||8});
             });
           });
 
+          // SFr./Fr./CHF format
           if(!dots.length){
-            // SFr./Fr./CHF format
             var priceLabel=line.items.filter(function(it){
               return /SFr\.?|Fr\.|CHF/i.test(it.str)&&it.x>=dotThresholdX;
             });
             if(priceLabel.length){
               priceLabel.forEach(function(lbl){
-                var afterSFr=lbl.x+(lbl.w||18)+3;
-                var available=pageW-afterSFr-5;
-                var hw=available*0.48;
-                dots.push({x:afterSFr,y:lbl.y,w:hw,str:lbl.str,isSFr:true});
-                dots.push({x:afterSFr+hw+4,y:lbl.y,w:hw,str:lbl.str+'_gp',isSFr:true});
+                var start2=lbl.x+(lbl.w||18)+3;
+                var avail2=pageW-start2-5;
+                var hw=avail2*0.47;
+                dots.push({x:start2,y:lbl.y,w:hw,str:lbl.str,isSFr:true});
+                dots.push({x:start2+hw+4,y:lbl.y,w:hw,str:lbl.str+'_gp',isSFr:true});
               });
             }
           }
           if(!dots.length) return;
 
-          var nonDots=line.items.filter(function(it){return !/\.{4,}/.test(it.str)&&!/SFr\.?|Fr\.|CHF/i.test(it.str);});
+          var nonDots=line.items.filter(function(it){
+            return !/\.{4,}/.test(it.str)&&!/SFr\.?|Fr\.|CHF/i.test(it.str);
+          });
           var txt=nonDots.map(function(it){return it.str;}).join(' ').trim();
 
           // Chapter totals
           if(/\btotal\b/i.test(txt)){
-            var totalDot=dots[dots.length-1];
-            pdfRows.push({y:line.y,text:txt,ep:totalDot,gp:null,isKapitelTotal:true});
+            pdfRows.push({y:line.y,text:txt,
+              ep:dots[dots.length-1],gp:null,isKapitelTotal:true});
             return;
           }
-          if(/\buebertrag\b|\bzwischentotal\b/i.test(txt)){
+          if(/uebertrag|zwischentotal/i.test(txt)){
             uebertragRow={y:line.y,ep:dots[0],gp:dots.length>1?dots[dots.length-1]:null};
             return;
           }
@@ -1063,15 +1072,15 @@ async function runClaudeParser(){
           var epDot=dots[0];
           var gpDot=dots.length>1?dots[dots.length-1]:null;
 
-          // BauPlus: use measured column positions for EP+GP
-          if(isBauPlusPage&&bauPlusEpX!==null&&!gpDot){
-            epDot={x:bauPlusEpX,y:epDot.y,w:bauPlusEpW,str:epDot.str,h:epDot.h||8};
-            gpDot={x:bauPlusGpX,y:epDot.y,w:bauPlusGpW,str:'.......',h:epDot.h||8};
+          // BauPlus: override with measured columns
+          if(isBauPlusPage&&bauEpX!==null){
+            epDot={x:bauEpX,y:epDot.y,w:bauEpW,str:epDot.str,h:epDot.h||8};
+            gpDot={x:bauGpX,y:epDot.y,w:bauGpW,str:'.......',h:epDot.h||8};
           }
 
           pdfRows.push({y:line.y,text:txt,ep:epDot,gp:gpDot});
         });
-      } // end LV page detection
+      } // end LV detection
       console.log('[PDF.js] Page '+pi+': '+pdfRows.length+' price-rows'+(uebertragRow?' + \u00dcbertrag':''));
 
       var clRows=await askClaude(canvas,pdfRows);
@@ -1323,7 +1332,7 @@ function makeField(key,type,box){
   el.style.left=box.x+'px';el.style.top=box.y+'px';
   el.style.width=box.w+'px';el.style.height=box.h+'px';
   el.style.fontSize='10px';
-  if(parsedPos[key]&&parsedPos[key].isCover){el.style.textAlign='left';el.style.paddingLeft='3px';el.style.background='rgba(255,252,200,0.95)';}
+  if(parsedPos[key]&&parsedPos[key].isCover){el.style.textAlign='left';el.style.paddingLeft='3px';el.style.paddingRight='0';el.style.background='rgba(255,252,200,0.95)';}
   return el;
 }
 

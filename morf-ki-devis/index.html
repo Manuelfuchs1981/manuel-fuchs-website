@@ -1052,147 +1052,65 @@ function updateTotals(){
 // ── PDF EXPORT ──────────────────────────────────────────────
 async function doExport(){
   if(!currentOfferte){showToast('Keine Offerte geladen','err');return;}
-  showSpinner('PDF wird erstellt...');
+
+  // If LV fill view has been used → export original PDF with values written in
+  var hasLvFields=Object.keys(parsedPos).length>0;
+  if(hasLvFields&&currentPdfB64){
+    await exportOriginalPdf();
+  } else {
+    await exportSummaryPdf();
+  }
+}
+
+// ── EXPORT: write values into ORIGINAL PDF ──────────────────
+async function exportOriginalPdf(){
+  showSpinner('Original-PDF wird ausgefüllt...');
   try{
     var {PDFDocument,rgb,StandardFonts}=PDFLib;
-    var doc=await PDFDocument.create();
+    var raw=atob(currentPdfB64);
+    var arr=new Uint8Array(raw.length);
+    for(var i=0;i<raw.length;i++) arr[i]=raw.charCodeAt(i);
+    var doc=await PDFDocument.load(arr);
     var font=await doc.embedFont(StandardFonts.Helvetica);
     var fontB=await doc.embedFont(StandardFonts.HelveticaBold);
-    var blue=rgb(0,0,0.6);
-    var black=rgb(0,0,0);
-    var grey=rgb(0.5,0.5,0.5);
-    var lgrey=rgb(0.92,0.92,0.92);
+    var blue=rgb(0,0,0.7);
+    var S=RENDER_SCALE;
 
-    function fmtCH(n){return Number(n||0).toLocaleString('de-CH',{minimumFractionDigits:2,maximumFractionDigits:2});}
-    function fmtQ(n){return Number(n||0).toLocaleString('de-CH',{maximumFractionDigits:3});}
+    // For each field in parsedPos, write value into the correct page
+    Object.keys(parsedPos).forEach(function(key){
+      var pp=parsedPos[key];
+      if(!pp||pp.pageIdx===undefined) return;
+      var page=doc.getPages()[pp.pageIdx];
+      if(!page) return;
+      var pH=page.getHeight();
+      var sz=8;
 
-    // ── PAGE 1: DECKBLATT ──────────────────────────────────
-    var p1=doc.addPage([595,842]);
-    var y=800;
-    function text(pg,t,x,py,sz,f,col){pg.drawText(String(t||''),{x,y:py,size:sz||10,font:f||font,color:col||black});}
-    function line(pg,x1,py1,x2,py2,col,th){pg.drawLine({start:{x:x1,y:py1},end:{x:x2,y:py2},thickness:th||0.5,color:col||grey});}
-    function rect(pg,x,py,w,h,col){pg.drawRectangle({x,y:py,width:w,height:h,color:col});}
+      // Get value from input field
+      var epEl=document.getElementById('ef-'+key);
+      var val=epEl?epEl.value.trim():'';
+      if(!val||val==='–') return;
 
-    // Header
-    text(p1,'MORF KI-DEVIS — Offert-Zusammenfassung',50,y,14,fontB,blue); y-=8;
-    line(p1,50,y,545,y,blue,1.5); y-=20;
+      // Convert canvas coords back to PDF coords
+      var pdfX=pp.epBox.x/S;
+      var pdfY=pH-(pp.epBox.y/S)-(pp.epBox.h/S)+2;
 
-    // Projektinfo
-    text(p1,'Bauvorhaben',50,y,8,font,grey);
-    text(p1,document.getElementById('fBauvorhaben').value||'–',180,y,9,fontB);
-    text(p1,'Projekt-Nr.',400,y,8,font,grey);
-    text(p1,document.getElementById('fProjektNr').value||'–',480,y,9,font);
-    y-=16;
-    text(p1,'Datum',50,y,8,font,grey);
-    text(p1,document.getElementById('fDatum').value||'–',180,y,9,font); y-=24;
-
-    line(p1,50,y,545,y,grey,0.3); y-=16;
-
-    // Bauleitung (from offerte)
-    text(p1,'Bauleitung',50,y,8,font,grey);
-    text(p1,currentOfferte.bauleiter||'–',180,y,9,font); y-=24;
-
-    // Unternehmer
-    text(p1,'Unternehmer',50,y,8,font,grey);
-    text(p1,document.getElementById('fName').value,180,y,10,fontB); y-=14;
-    text(p1,document.getElementById('fAddr1').value,180,y,9,font); y-=14;
-    text(p1,document.getElementById('fAddr2').value,180,y,9,font); y-=14;
-    text(p1,'Tel. '+document.getElementById('fTel').value,180,y,9,font);
-    var mob=document.getElementById('fMobile').value;
-    if(mob){text(p1,'  Mobile '+mob,300,y,9,font);}
-    y-=14;
-    text(p1,'Sachbearbeiter: '+document.getElementById('fSachb').value,180,y,9,font);
-    y-=28;
-
-    line(p1,50,y,545,y,grey,0.3); y-=20;
-
-    // Offertsumme
-    text(p1,'OFFERTSUMME',50,y,11,fontB,blue); y-=18;
-
-    var brutto=currentOfferte.brutto||0;
-    var rabattPct=parseFloat(document.getElementById('fRabattPct').value)||0;
-    var rabatt=brutto*rabattPct/100;
-    var netto=brutto-rabatt;
-    var mwst=netto*0.081;
-    var total=netto+mwst;
-
-    function sumRow(label,val,bold){
-      rect(p1,50,y-3,495,16,bold?rgb(0.94,0.97,1):rgb(0.97,0.97,0.97));
-      text(p1,label,55,y,9,bold?fontB:font,bold?blue:black);
-      text(p1,'Fr. '+fmtCH(val),430,y,9,bold?fontB:font,bold?blue:black);
-      y-=18;
-    }
-    sumRow('Brutto',brutto,false);
-    if(rabattPct>0) sumRow('Rabatt '+rabattPct+'%',rabatt,false);
-    sumRow('Netto vor MWST',netto,false);
-    sumRow('MWST 8.10%',mwst,false);
-    sumRow('TOTAL inkl. MWST',total,true);
-    y-=20;
-
-    // Ort/Datum/Unterschrift
-    text(p1,'Ort, Datum',50,y,8,font,grey);
-    text(p1,document.getElementById('fOrtDatum').value,180,y,9,font);
-    y-=30;
-    line(p1,50,y,250,y,grey,0.5);
-    line(p1,300,y,545,y,grey,0.5);
-    text(p1,'Ort, Datum / Unterschrift',50,y-10,7,font,grey);
-    text(p1,'Unternehmer',300,y-10,7,font,grey);
-
-    // ── PAGE 2+: POSITIONEN ────────────────────────────────
-    var pos=currentOfferte.positionen||[];
-    var colW=[60,220,55,35,70,75]; // pos_nr,desc,qty,unit,ep,gp
-    var cols=[50,115,340,400,440,515];
-    var rowH=14;
-    var pageH=842;
-
-    function newPage(){
-      var pg=doc.addPage([595,pageH]);
-      var py=pageH-40;
-      // Header row
-      rect(pg,45,py-2,505,14,rgb(0.2,0.35,0.65));
-      ['Pos-Nr.','Beschreibung','Menge','Einh.','EP CHF','GP CHF'].forEach(function(h,i){
-        pg.drawText(h,{x:cols[i]+2,y:py,size:7,font:fontB,color:rgb(1,1,1)});
+      var iscover=pp.status==='cover';
+      page.drawText(val,{
+        x:pdfX+2, y:pdfY,
+        size:sz,
+        font:iscover?font:font,
+        color:blue
       });
-      return {pg:pg, y:py-rowH};
-    }
 
-    var cur=newPage(); var pg=cur.pg; y=cur.y;
-
-    pos.forEach(function(p){
-      if(y<60){cur=newPage();pg=cur.pg;y=cur.y;}
-
-      if(p.is_total){
-        rect(pg,45,y-2,505,13,rgb(0.9,0.95,1));
-        pg.drawText((p.pos_nr||'')+' — '+(p.beschreibung||''),{x:52,y:y,size:8,font:fontB,color:blue});
-        var tgp=0;
-        // sum previous
-        pos.filter(function(x){return !x.is_total&&x.ep>0&&x.qty>0;}).forEach(function(x){tgp+=x.ep*x.qty;});
-        // calc section total properly
-        pg.drawText('Fr. '+fmtCH(p._sectionGP||0),{x:cols[5],y:y,size:8,font:fontB,color:blue});
-        y-=rowH+2;
-      } else {
-        var desc=(p.beschreibung||'').slice(0,42);
-        pg.drawText(p.pos_nr||'',{x:cols[0],y:y,size:7.5,font:font,color:black});
-        pg.drawText(desc,{x:cols[1],y:y,size:7.5,font:font,color:black});
-        pg.drawText(p.qty>0?fmtQ(p.qty):'–',{x:cols[2]+colW[2]-5,y:y,size:7.5,font:font,color:black});
-        pg.drawText(p.unit||'',{x:cols[3]+2,y:y,size:7.5,font:font,color:grey});
-        if(p.ep>0){
-          pg.drawText(fmtCH(p.ep),{x:cols[4]+colW[4]-10,y:y,size:7.5,font:font,color:black});
-          if(p.qty>0) pg.drawText(fmtCH(p.ep*p.qty),{x:cols[5]+colW[5]-10,y:y,size:7.5,font:p.hat_vorschlag?fontB:font,color:black});
-        } else {
-          pg.drawText('–',{x:cols[4]+30,y:y,size:7.5,font:font,color:grey});
+      // GP value
+      if(pp.gpBox){
+        var gpEl=document.getElementById('gf-'+key);
+        var gpVal=gpEl?gpEl.value.trim():'';
+        if(gpVal&&gpVal!=='–'){
+          var gpPdfX=pp.gpBox.x/S;
+          page.drawText(gpVal,{x:gpPdfX+2,y:pdfY,size:sz,font:font,color:blue});
         }
-        // subtle row separator
-        pg.drawLine({start:{x:45,y:y-2},end:{x:550,y:y-2},thickness:0.2,color:rgb(0.88,0.88,0.88)});
-        y-=rowH;
       }
-    });
-
-    // Pre-calculate section totals
-    var running2=0;
-    pos.forEach(function(p){
-      if(!p.is_total&&p.ep>0&&p.qty>0) running2+=p.ep*p.qty;
-      if(p.is_total){p._sectionGP=running2;running2=0;}
     });
 
     var bytes=await doc.save();
@@ -1200,18 +1118,76 @@ async function doExport(){
     var url=URL.createObjectURL(blob);
     var a=document.createElement('a');
     a.href=url;
-    var fn=(document.getElementById('fBauvorhaben').value||'Offerte').replace(/[^a-zA-Z0-9äöü\s]/g,'').trim();
-    a.download='Morf-KI-Devis_'+fn+'.pdf';
+    var fn=(document.getElementById('fBauvorhaben').value||currentPdfName||'Offerte')
+             .replace(/[^a-zA-Z0-9äöüÄÖÜ\s-]/g,'').trim();
+    a.download='Ausgefuellt_'+fn+'.pdf';
     a.click();
     URL.revokeObjectURL(url);
     hideSpinner();
-    showToast('✓ PDF exportiert','ok');
+    showToast('✓ Original-PDF ausgefüllt und heruntergeladen','ok');
   }catch(e){
     hideSpinner();
     console.error(e);
     showToast('Export-Fehler: '+e.message,'err');
   }
 }
+
+// ── EXPORT: summary PDF (fallback if LV not rendered) ───────
+async function exportSummaryPdf(){
+  showSpinner('Zusammenfassung wird erstellt...');
+  try{
+    var {PDFDocument,rgb,StandardFonts}=PDFLib;
+    var doc=await PDFDocument.create();
+    var font=await doc.embedFont(StandardFonts.Helvetica);
+    var fontB=await doc.embedFont(StandardFonts.HelveticaBold);
+    var blue=rgb(0.1,0.3,0.63);
+    var black=rgb(0,0,0);
+    var grey=rgb(0.5,0.5,0.5);
+
+    function fmtCH(n){return Number(n||0).toLocaleString('de-CH',{minimumFractionDigits:2,maximumFractionDigits:2});}
+    function fmtQ(n){return Number(n||0).toLocaleString('de-CH',{maximumFractionDigits:3});}
+
+    var p1=doc.addPage([595,842]);
+    var y=800;
+    p1.drawText('MORF KI-DEVIS — Offert-Zusammenfassung',{x:50,y:y,size:14,font:fontB,color:blue}); y-=8;
+    p1.drawLine({start:{x:50,y:y},end:{x:545,y:y},thickness:1.5,color:blue}); y-=20;
+
+    p1.drawText('Bauvorhaben: '+(document.getElementById('fBauvorhaben').value||'–'),{x:50,y:y,size:10,font:font}); y-=16;
+    p1.drawText('Projekt-Nr.: '+(document.getElementById('fProjektNr').value||'–'),{x:50,y:y,size:10,font:font}); y-=16;
+    p1.drawText('Datum: '+(document.getElementById('fDatum').value||'–'),{x:50,y:y,size:10,font:font}); y-=24;
+
+    p1.drawText('Unternehmer: '+(document.getElementById('fName').value||'–'),{x:50,y:y,size:10,font:fontB}); y-=14;
+    p1.drawText(document.getElementById('fAddr1').value+'  '+document.getElementById('fAddr2').value,{x:50,y:y,size:9,font:font}); y-=14;
+    p1.drawText('Tel. '+document.getElementById('fTel').value+'  Sachbearbeiter: '+document.getElementById('fSachb').value,{x:50,y:y,size:9,font:font}); y-=28;
+
+    var brutto=currentOfferte.brutto||0;
+    var rp=parseFloat(document.getElementById('fRabattPct').value)||0;
+    var rabatt=brutto*rp/100;
+    var netto=brutto-rabatt;
+    var mwst=netto*0.081;
+    var total=netto+mwst;
+
+    [{l:'Brutto',v:brutto},{l:'Rabatt '+rp+'%',v:rabatt},{l:'Netto',v:netto},{l:'MWST 8.10%',v:mwst},{l:'TOTAL',v:total,b:true}].forEach(function(r){
+      if(!r.b) p1.drawRectangle({x:50,y:y-3,width:495,height:14,color:rgb(0.95,0.95,0.95)});
+      else p1.drawRectangle({x:50,y:y-3,width:495,height:14,color:rgb(0.9,0.95,1)});
+      p1.drawText(r.l,{x:55,y:y,size:9,font:r.b?fontB:font,color:r.b?blue:black});
+      p1.drawText('Fr. '+fmtCH(r.v),{x:430,y:y,size:9,font:r.b?fontB:font,color:r.b?blue:black});
+      y-=18;
+    });
+    y-=10;
+    p1.drawText('Hinweis: Für das Original-LV zuerst "LV ausfüllen" öffnen und dann exportieren.',{x:50,y:y,size:8,font:font,color:grey});
+
+    var bytes=await doc.save();
+    var blob=new Blob([bytes],{type:'application/pdf'});
+    var url=URL.createObjectURL(blob);
+    var a=document.createElement('a');a.href=url;
+    a.download='Zusammenfassung_Offerte.pdf';a.click();
+    URL.revokeObjectURL(url);
+    hideSpinner();
+    showToast('Zusammenfassung exportiert (für Original-LV: erst "LV ausfüllen" öffnen)','info');
+  }catch(e){hideSpinner();showToast('Fehler: '+e.message,'err');}
+}
+
 
 // ── UI HELPERS ────────────────────────────────────────────
 function togglePanel(header){

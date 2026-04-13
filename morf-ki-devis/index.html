@@ -218,6 +218,27 @@ input[type=file]{display:none}
 .hist-table th,.hist-table td{padding:8px 10px;text-align:left;border-bottom:1px solid var(--border)}
 .hist-table th{color:var(--text2);font-size:10px;text-transform:uppercase;letter-spacing:0.08em}
 .hist-table tr:hover td{background:var(--surface2);cursor:pointer}
+
+/* ── LV FILL VIEW ── */
+#lvFillView{display:none}
+.lv-pages{display:flex;flex-direction:column;align-items:center;gap:16px;padding:16px 0}
+.page-wrap{position:relative;box-shadow:0 2px 12px rgba(0,0,0,0.15);background:#fff}
+.page-overlay{position:absolute;top:0;left:0;pointer-events:none}
+.fill-field{
+  position:absolute;pointer-events:all;
+  background:rgba(220,235,255,0.85);
+  border:none;border-bottom:2px solid #1a56a0;
+  font-family:var(--mono);font-size:11px;color:#00008b;
+  text-align:right;padding:0 4px;outline:none;border-radius:2px;
+  box-sizing:border-box;
+}
+.fill-field:focus{background:rgba(200,220,255,0.95);border-bottom-color:#c8a84b;}
+.fill-field.cover-field{text-align:left!important;background:rgba(255,252,200,0.9)!important;border-bottom-color:#c8a84b!important;}
+.fill-field.gp{background:rgba(200,240,210,0.85)!important;border-bottom-color:#2d7d4e!important;color:#1a4d2e!important;}
+.fill-field.total-field{background:rgba(230,230,255,0.85)!important;border-bottom-color:#5555aa!important;font-weight:600;}
+.tab-btns{display:flex;gap:8px;margin-bottom:16px}
+.tab-btn{padding:8px 20px;border-radius:4px;border:1px solid var(--border);background:var(--surface2);color:var(--text2);cursor:pointer;font-size:13px;font-weight:500;}
+.tab-btn.active{background:var(--accent);color:#fff;border-color:var(--accent);}
 </style>
 </head>
 <body>
@@ -248,6 +269,8 @@ input[type=file]{display:none}
   <div id="userBadge">–</div>
   <div class="topbar-actions">
     <button class="btn" onclick="showHistory()">📋 Offerten-Archiv</button>
+    <button class="tab-btn" id="tabTable" style="display:none" onclick="showTab('table')">📋 Tabelle</button>
+    <button class="tab-btn" id="tabLV" style="display:none" onclick="showTab('lv')">📄 LV ausfüllen</button>
     <button class="btn" id="exportBtn" style="display:none" onclick="doExport()">⬇ Export PDF</button>
     <button class="btn" id="saveBtn" style="display:none" onclick="doSave()">💾 Speichern</button>
     <button class="btn" onclick="toggleDrawer()">⚙</button>
@@ -335,6 +358,15 @@ input[type=file]{display:none}
 
 </div><!-- analyseScreen -->
 
+<!-- LV FILL VIEW -->
+<div id="lvFillView">
+  <div class="status-bar" id="lvStatusBar">
+    <div class="status-dot" id="lvStatusDot"></div>
+    <span id="lvStatusMsg">Bereit</span>
+  </div>
+  <div class="lv-pages" id="lvPages"></div>
+</div>
+
 <!-- HISTORY PANEL -->
 <div id="historyPanel" style="display:none">
   <h2 style="font-family:var(--mono);color:var(--accent);margin-bottom:16px;font-size:16px">OFFERTEN-ARCHIV</h2>
@@ -365,6 +397,7 @@ input[type=file]{display:none}
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
 <script>
 // ── CONFIG ────────────────────────────────────────────────
 var SB_URL='https://mwwrfwalfqjnyapowdlu.supabase.co';
@@ -373,6 +406,14 @@ var EDGE_URL=SB_URL+'/functions/v1/analyse-offerte';
 var MORF={name:'Karl Morf AG',addr1:'Aspstrasse 6',addr2:'8154 Oberglatt',tel:'+41 44 852 30 00'};
 
 var supabase=window.supabase.createClient(SB_URL,SB_KEY);
+var currentPdfB64='';
+var currentPdfDoc=null;
+var parsedPos={};
+var RENDER_SCALE=1.5;
+// Configure PDF.js worker
+if(typeof pdfjsLib!=='undefined'){
+  pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
+}
 var currentOfferte=null;
 var currentPdfName='';
 var currentSession=null;
@@ -715,6 +756,297 @@ async function loadOfferte(offerteId){
     hideSpinner();
     showToast('Fehler: '+e.message,'err');
   }
+}
+
+// ── TAB SWITCHING ────────────────────────────────────────────
+function showTab(tab){
+  document.getElementById('tabTable').classList.toggle('active', tab==='table');
+  document.getElementById('tabLV').classList.toggle('active', tab==='lv');
+  document.getElementById('analyseScreen').style.display=tab==='table'?'block':'none';
+  document.getElementById('lvFillView').style.display=tab==='lv'?'block':'none';
+  if(tab==='lv'&&document.getElementById('lvPages').children.length===0){
+    renderLVFill();
+  }
+}
+
+// ── RENDER ORIGINAL PDF WITH FIELDS ──────────────────────────
+async function renderLVFill(){
+  if(!currentPdfB64||!currentOfferte){showToast('Kein PDF geladen','err');return;}
+  document.getElementById('lvStatusDot').className='status-dot';
+  document.getElementById('lvStatusMsg').textContent='Original-PDF wird gerendert...';
+
+  var raw=atob(currentPdfB64);
+  var arr=new Uint8Array(raw.length);
+  for(var i=0;i<raw.length;i++) arr[i]=raw.charCodeAt(i);
+
+  currentPdfDoc=await pdfjsLib.getDocument({data:arr}).promise;
+  var pages=document.getElementById('lvPages');
+  pages.innerHTML='';
+  parsedPos={};
+
+  // Build lookup: line text → position info from Claude analysis
+  var posMap={};
+  (currentOfferte.positionen||[]).forEach(function(p){
+    if(!p.is_total&&p.beschreibung){
+      posMap[p.pos_nr]={qty:p.qty,unit:p.unit,ep:p.ep||0,beschreibung:p.beschreibung};
+    }
+  });
+
+  for(var pi=0;pi<currentPdfDoc.numPages;pi++){
+    var page=await currentPdfDoc.getPage(pi+1);
+    var vp1=page.getViewport({scale:1});
+    var pageW=vp1.width, pageH=vp1.height;
+    var vp=page.getViewport({scale:RENDER_SCALE});
+    var canvas=document.createElement('canvas');
+    canvas.width=vp.width; canvas.height=vp.height;
+    await page.render({canvasContext:canvas.getContext('2d'),viewport:vp}).promise;
+
+    // Extract text with coordinates
+    var tc=await page.getTextContent();
+    var allItems=tc.items.map(function(it){
+      return {str:it.str,x:it.transform[4],y:it.transform[5],
+        w:it.width,h:Math.abs(it.transform[3])||8};
+    });
+
+    // Group into lines
+    var lines=[];
+    allItems.forEach(function(it){
+      var found=lines.find(function(l){return Math.abs(l.y-it.y)<3;});
+      if(found) found.items.push(it);
+      else lines.push({y:it.y,items:[it]});
+    });
+    lines.sort(function(a,b){return b.y-a.y;});
+
+    var wrap=document.createElement('div');
+    wrap.className='page-wrap';
+    wrap.style.width=vp.width+'px'; wrap.style.height=vp.height+'px';
+    var overlay=document.createElement('div');
+    overlay.className='page-overlay'; overlay.id='ov-'+pi;
+    overlay.style.width=vp.width+'px'; overlay.style.height=vp.height+'px';
+    wrap.appendChild(canvas); wrap.appendChild(overlay);
+    pages.appendChild(wrap);
+
+    // ── COVER PAGE ────────────────────────────────────────
+    var isCover=pi===0&&allItems.some(function(it){
+      return /(unternehmer|offertsumme|sachbearbeiter)/i.test(it.str);
+    });
+
+    if(isCover){
+      renderCoverFields(overlay,lines,pageW,pageH,pi);
+      continue;
+    }
+
+    // ── LV PAGES: detect price rows ──────────────────────
+    var S=RENDER_SCALE;
+    var isBauPlus=allItems.some(function(it){return it.str==='SKI';});
+    var bauEpX=null,bauEpW=null,bauGpX=null,bauGpW=null;
+
+    if(isBauPlus){
+      for(var li=0;li<lines.length;li++){
+        if(!lines[li].items.some(function(it){return it.str==='SKI';})) continue;
+        var aItems=lines[li].items.filter(function(it){return it.str.trim()==='A'&&it.x>pageW*0.48;});
+        if(!aItems.length) continue;
+        var lastA=aItems[aItems.length-1];
+        var start=lastA.x+(lastA.w||6)+2;
+        var avail=pageW-start-4;
+        if(avail<50) continue;
+        bauEpX=start; bauEpW=avail*0.47;
+        bauGpX=start+avail*0.51; bauGpW=avail*0.47;
+        break;
+      }
+    }
+
+    var dotThresh=pageW*0.55;
+    var rowH=Math.round(13*S);
+
+    lines.forEach(function(line){
+      var txt=line.items.filter(function(it){return !/\.{4,}/.test(it.str);})
+                        .map(function(it){return it.str;}).join(' ').trim();
+      var canvasY=Math.round((pageH-line.y)*S);
+
+      // Total rows
+      if(/total/i.test(txt)){
+        var dots=line.items.filter(function(it){return /\.{4,}/.test(it.str);});
+        if(!dots.length) return;
+        var td=dots[dots.length-1];
+        var key='total_p'+pi+'_'+Math.round(line.y);
+        var box={x:Math.round(td.x*S),y:canvasY-rowH+1,w:Math.round(td.w*S)||100,h:rowH};
+        parsedPos[key]={pos:txt,qty:0,unit:'',ep:0,status:'total',pageIdx:pi,epBox:box};
+        placeField(overlay,key,box,null,'total');
+        return;
+      }
+
+      // Price rows
+      var epBox=null,gpBox=null;
+      if(isBauPlus&&bauEpX!==null){
+        epBox={x:Math.round(bauEpX*S),y:canvasY-rowH+1,w:Math.round(bauEpW*S),h:rowH};
+        gpBox={x:Math.round(bauGpX*S),y:canvasY-rowH+1,w:Math.round(bauGpW*S),h:rowH};
+        // Only on SKI lines
+        if(!line.items.some(function(it){return it.str==='SKI';})) return;
+      } else {
+        var dots2=line.items.filter(function(it){return /\.{4,}/.test(it.str)&&it.x>=dotThresh;});
+        if(!dots2.length) return;
+        epBox={x:Math.round(dots2[0].x*S),y:canvasY-rowH+1,w:Math.round((dots2[0].w||pageW*0.18)*S),h:rowH};
+        if(dots2.length>1){
+          gpBox={x:Math.round(dots2[dots2.length-1].x*S),y:canvasY-rowH+1,
+                 w:Math.round((dots2[dots2.length-1].w||pageW*0.18)*S),h:rowH};
+        }
+      }
+      if(!epBox) return;
+
+      // Find matching Claude position for pre-fill
+      var matchedPos=null;
+      var linePos=line.items.filter(function(it){return /^\.\d{3}/.test(it.str.trim());});
+      if(linePos.length&&posMap[linePos[0].str.trim()]){
+        matchedPos=posMap[linePos[0].str.trim()];
+      }
+
+      var key2='p'+pi+'_'+Math.round(line.y);
+      parsedPos[key2]={
+        pos:txt,qty:matchedPos?matchedPos.qty:0,unit:matchedPos?matchedPos.unit:'',
+        ep:matchedPos?matchedPos.ep:0,status:'price',pageIdx:pi,epBox:epBox,gpBox:gpBox
+      };
+      placeField(overlay,key2,epBox,gpBox,'price');
+
+      // Pre-fill if EP known
+      if(matchedPos&&matchedPos.ep>0){
+        var epEl=document.getElementById('ef-'+key2);
+        if(epEl){epEl.value=fmtN(matchedPos.ep);epEl.style.background='rgba(180,240,200,0.9)';}
+        if(gpBox&&matchedPos.qty>0){
+          var gpEl=document.getElementById('gf-'+key2);
+          if(gpEl) gpEl.value=fmtN(matchedPos.ep*matchedPos.qty);
+        }
+      }
+    });
+  }
+
+  document.getElementById('lvStatusDot').className='status-dot done';
+  document.getElementById('lvStatusMsg').textContent=
+    Object.keys(parsedPos).length+' Felder platziert — EP eintragen, GP berechnet sich automatisch';
+}
+
+function renderCoverFields(overlay,lines,pageW,pageH,pi){
+  var S=RENDER_SCALE;
+  var rowH=Math.round(13*S);
+  lines.forEach(function(line){
+    var hasFr=line.items.some(function(it){return /^Fr\.?$/i.test(it.str.trim());});
+    var canvasY=Math.round((pageH-line.y)*S);
+    var rowTxt=line.items.filter(function(it){return !/\.{3,}/.test(it.str);})
+                         .map(function(it){return it.str;}).join(' ').trim();
+
+    // Left dotted fields (Unternehmer, Sachbearbeiter, Ort/Datum)
+    if(!hasFr){
+      var ldots=line.items.filter(function(it){
+        return /\.{6,}/.test(it.str)&&it.x<pageW*0.55&&!/%/.test(it.str);
+      });
+      ldots.forEach(function(dl){
+        var fw=Math.max(pageW*0.52-dl.x,pageW*0.30);
+        var key='cov_l_'+pi+'_'+Math.round(dl.x)+'_'+Math.round(line.y);
+        var box={x:Math.round(dl.x*S),y:canvasY-rowH+1,w:Math.round(fw*S),h:rowH};
+        parsedPos[key]={pos:rowTxt,qty:0,unit:'',ep:0,status:'cover',pageIdx:pi,epBox:box};
+        placeField(overlay,key,box,null,'cover');
+      });
+      // Right dotted fields (Tel, Mobile)
+      var rdots=line.items.filter(function(it){
+        return /\.{4,}/.test(it.str)&&it.x>=pageW*0.58&&!/%/.test(it.str);
+      });
+      rdots.forEach(function(dl){
+        var fw=Math.min(pageW*0.95-dl.x,pageW*0.20);
+        var key='cov_r_'+pi+'_'+Math.round(dl.x)+'_'+Math.round(line.y);
+        var box={x:Math.round(dl.x*S),y:canvasY-rowH+1,w:Math.round(fw*S),h:rowH};
+        parsedPos[key]={pos:rowTxt,qty:0,unit:'',ep:0,status:'cover',pageIdx:pi,epBox:box};
+        placeField(overlay,key,box,null,'cover');
+      });
+    }
+
+    // Rabatt %
+    var pctDots=line.items.filter(function(it){return /\.{3,}%/.test(it.str);});
+    pctDots.forEach(function(dl){
+      var fw=Math.max((dl.w||20)*0.7,pageW*0.05);
+      var key='cov_pct_'+pi+'_'+Math.round(line.y);
+      var box={x:Math.round(dl.x*S),y:canvasY-rowH+1,w:Math.round(fw*S),h:rowH};
+      parsedPos[key]={pos:'Rabatt%',qty:0,unit:'',ep:0,status:'cover',pageIdx:pi,epBox:box};
+      placeField(overlay,key,box,null,'cover');
+    });
+
+    // Fr. fields (Offertsumme)
+    if(hasFr){
+      var frItems=line.items.filter(function(it){return /^Fr\.?$/i.test(it.str.trim());});
+      frItems.forEach(function(fr){
+        var dotsAfter=line.items.filter(function(it){
+          return /\.{4,}/.test(it.str)&&it.x>fr.x&&it.x<fr.x+pageW*0.30;
+        });
+        dotsAfter.forEach(function(dl){
+          var fw=Math.max(dl.w||pageW*0.17,pageW*0.15);
+          var key='cov_fr_'+pi+'_'+Math.round(dl.x)+'_'+Math.round(line.y);
+          if(parsedPos[key]) return;
+          var box={x:Math.round(dl.x*S),y:canvasY-rowH+1,w:Math.round(fw*S),h:rowH};
+          parsedPos[key]={pos:rowTxt,qty:0,unit:'',ep:0,status:'cover',pageIdx:pi,epBox:box};
+          placeField(overlay,key,box,null,'cover');
+        });
+      });
+    }
+  });
+}
+
+function placeField(overlay,key,epBox,gpBox,type){
+  var isCover=type==='cover';
+  var isTotal=type==='total';
+
+  var ep=document.createElement('input');
+  ep.type='text'; ep.id='ef-'+key;
+  ep.className='fill-field'+(isCover?' cover-field':isTotal?' total-field':'');
+  ep.style.left=epBox.x+'px'; ep.style.top=epBox.y+'px';
+  ep.style.width=epBox.w+'px'; ep.style.height=epBox.h+'px';
+  ep.dataset.key=key; ep.dataset.isCover=isCover?'1':'0';
+  ep.readOnly=isTotal;
+
+  if(!isCover&&!isTotal){
+    ep.addEventListener('input',function(){
+      var pp=parsedPos[key]; if(!pp) return;
+      var n=parseFloat(this.value.replace(/[' ]/g,'').replace(',','.'));
+      if(!isNaN(n)&&n>0){
+        pp.ep=n; pp.status='price';
+        if(pp.qty>0){
+          var gEl=document.getElementById('gf-'+key);
+          if(gEl) gEl.value=fmtN(n*pp.qty);
+        }
+        updateTotals();
+      }
+    });
+    ep.addEventListener('blur',function(){
+      var pp=parsedPos[key];
+      if(pp&&pp.ep>0) this.value=fmtN(pp.ep);
+    });
+    ep.addEventListener('focus',function(){
+      var pp=parsedPos[key];
+      if(pp&&pp.ep>0) this.value=pp.ep;
+    });
+    ep.addEventListener('keydown',function(e){
+      if(e.key==='Tab'||e.key==='Enter'){e.preventDefault();
+        var all=Array.from(document.querySelectorAll('.fill-field:not([readonly]):not(.cover-field)'));
+        var nx=all[all.indexOf(this)+1]; if(nx){nx.focus();}}
+      if(e.key.toLowerCase()==='k'){e.preventDefault();this.value='k. A.';parsedPos[key]&&(parsedPos[key].status='ka');}
+      if(e.key.toLowerCase()==='b'){e.preventDefault();this.value='bauseits';parsedPos[key]&&(parsedPos[key].status='bauseits');}
+      if(e.key.toLowerCase()==='i'){e.preventDefault();this.value='inkl.';parsedPos[key]&&(parsedPos[key].status='inkl');}
+    });
+  }
+  overlay.appendChild(ep);
+
+  if(gpBox&&!isCover&&!isTotal){
+    var gp=document.createElement('input');
+    gp.type='text'; gp.id='gf-'+key;
+    gp.className='fill-field gp';
+    gp.style.left=gpBox.x+'px'; gp.style.top=gpBox.y+'px';
+    gp.style.width=gpBox.w+'px'; gp.style.height=gpBox.h+'px';
+    gp.readOnly=true; gp.tabIndex=-1;
+    overlay.appendChild(gp);
+  }
+}
+
+function updateTotals(){
+  // Update table summen
+  recalcSummen();
 }
 
 // ── PDF EXPORT ──────────────────────────────────────────────

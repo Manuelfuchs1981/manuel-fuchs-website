@@ -1256,104 +1256,255 @@ function updateTotals(){
 }
 
 // ── PDF EXPORT ──────────────────────────────────────────────
-// ── TEST EXPORT (browser-only, kein API-Call) ────────────────
+// ── INTELLIGENT EXPORT (PDF.js findet Koordinaten, pdf-lib schreibt) ──
 async function testExportPdf(){
   if(!currentPdfB64){showToast('PDF hochladen','err');return;}
-  showSpinner('Test: Schreibe Werte direkt ins PDF...');
+  showSpinner('PDF.js liest Koordinaten aus PDF...');
   try{
+    // Step 1: Load PDF with PDF.js to find exact coordinates
+    var raw=atob(currentPdfB64);
+    var arr=new Uint8Array(raw.length);
+    for(var i=0;i<raw.length;i++) arr[i]=raw.charCodeAt(i);
+    var pjsDoc=await pdfjsLib.getDocument({data:arr}).promise;
+
+    // Step 2: Extract all text items with coordinates from all pages
+    var pageData=[];
+    for(var pi=0;pi<pjsDoc.numPages;pi++){
+      var page=await pjsDoc.getPage(pi+1);
+      var vp=page.getViewport({scale:1});
+      var tc=await page.getTextContent();
+      var items=tc.items.map(function(it){
+        return {str:it.str,x:it.transform[4],y:it.transform[5],
+                w:it.width,h:Math.abs(it.transform[3])||8,page:pi,
+                pageH:vp.height};
+      });
+      pageData.push({items:items,pageH:vp.height,pageW:vp.width});
+    }
+
+    // Step 3: Find fillable positions intelligently
+    // For each dotted line: find what label precedes it → assign the right value
+    var fields=[]; // {page, x, y, text, align}
+
+    // ── COVER PAGE (page 0) ─────────────────────────────────
+    var p0=pageData[0];
+    if(p0){
+      var items0=p0.items;
+
+      // Group items by Y (same line = same Y ±2pt)
+      var lines0={};
+      items0.forEach(function(it){
+        var ky=Math.round(it.y);
+        if(!lines0[ky]) lines0[ky]=[];
+        lines0[ky].push(it);
+      });
+
+      // Sort lines top to bottom (descending Y in PDF coords)
+      var sortedY=Object.keys(lines0).map(Number).sort(function(a,b){return b-a;});
+
+      // Form values
+      var vals={
+        name:document.getElementById('fName').value,
+        addr1:document.getElementById('fAddr1').value,
+        addr2:document.getElementById('fAddr2').value,
+        sachb:document.getElementById('fSachb').value,
+        tel:document.getElementById('fTel').value,
+        mobile:document.getElementById('fMobile').value,
+        ortdat:document.getElementById('fOrtDatum').value,
+        rabattPct:parseFloat(document.getElementById('fRabattPct').value)||0,
+      };
+
+      // Calculate totals
+      var pos=currentOfferte&&currentOfferte.positionen||[];
+      var brutto=0;
+      pos.forEach(function(p){if(!p.is_total&&p.ep>0&&p.qty>0)brutto+=p.ep*p.qty;});
+      var rabatt=brutto*vals.rabattPct/100;
+      var netto=brutto-rabatt;
+      var mwst=netto*0.081;
+      var total=netto+mwst;
+      var fCH=function(n){return Number(n).toLocaleString('de-CH',{minimumFractionDigits:2,maximumFractionDigits:2});};
+
+      // Find left dotted lines (Unternehmer, Sachbearbeiter, Ort/Datum)
+      var leftDotLines=[];
+      var rightDotLines=[];
+      var frLines=[];
+
+      sortedY.forEach(function(y){
+        var line=lines0[y];
+        var hasFr=line.some(function(it){return /^Fr\.?$/i.test(it.str.trim());});
+        var leftDots=line.filter(function(it){return /\.{6,}/.test(it.str)&&it.x<p0.pageW*0.53&&!/%/.test(it.str);});
+        var rightDots=line.filter(function(it){return /\.{4,}/.test(it.str)&&it.x>=p0.pageW*0.55&&!hasFr&&!/%/.test(it.str);});
+        var pctDot=line.filter(function(it){return /\.{3,}%/.test(it.str);});
+
+        leftDots.forEach(function(dl){leftDotLines.push({x:dl.x,y:dl.y,w:dl.w,pageH:p0.pageH});});
+        rightDots.forEach(function(dl){rightDotLines.push({x:dl.x,y:dl.y,w:dl.w,pageH:p0.pageH});});
+        pctDot.forEach(function(dl){
+          fields.push({page:0,x:dl.x+2,y:dl.y+1,text:String(vals.rabattPct),align:'left'});
+        });
+
+        if(hasFr){
+          // Offertsumme: find dots after each Fr.
+          var frItems=line.filter(function(it){return /^Fr\.?$/i.test(it.str.trim());});
+          frItems.forEach(function(fr){
+            var dotsAfter=line.filter(function(it){return /\.{4,}/.test(it.str)&&it.x>fr.x&&it.x<fr.x+p0.pageW*0.30;});
+            dotsAfter.forEach(function(dl){frLines.push({x:dl.x,y:dl.y,w:dl.w,pageH:p0.pageH});});
+          });
+        }
+      });
+
+      // Assign values to left dots (Name, Addr1, Addr2 = first 3, Sachbearbeiter = last before Offertsumme)
+      var leftFillVals=[vals.name,vals.addr1,vals.addr2];
+      leftDotLines.slice(0,3).forEach(function(dl,i){
+        if(leftFillVals[i]) fields.push({page:0,x:dl.x+2,y:dl.y+1,text:leftFillVals[i],align:'left'});
+      });
+      // Sachbearbeiter (separate line with "Sachbearbeiter:" label)
+      sortedY.forEach(function(y){
+        var line=lines0[y];
+        if(line.some(function(it){return /sachbearbeiter/i.test(it.str);})){
+          var dl=line.filter(function(it){return /\.{5,}/.test(it.str);});
+          if(dl.length&&vals.sachb) fields.push({page:0,x:dl[0].x+2,y:dl[0].y+1,text:vals.sachb,align:'left'});
+        }
+      });
+
+      // Assign Tel, Mobile to right dots
+      if(rightDotLines[0]&&vals.tel) fields.push({page:0,x:rightDotLines[0].x+2,y:rightDotLines[0].y+1,text:vals.tel,align:'left'});
+      if(rightDotLines[1]&&vals.mobile) fields.push({page:0,x:rightDotLines[1].x+2,y:rightDotLines[1].y+1,text:vals.mobile,align:'left'});
+
+      // Assign Offertsumme to Fr. dots (Brutto, Rabatt, MWST, Total in order)
+      var offerVals=[fCH(brutto),vals.rabattPct>0?fCH(rabatt):null,fCH(mwst),fCH(total)];
+      var fi=0;
+      frLines.forEach(function(dl){
+        while(fi<offerVals.length&&!offerVals[fi]) fi++;
+        if(fi<offerVals.length){
+          fields.push({page:0,x:dl.x+dl.w-2,y:dl.y+1,text:offerVals[fi],align:'right'});
+          fi++;
+        }
+      });
+
+      // Ort/Datum: find line with "Ort" label
+      sortedY.forEach(function(y){
+        var line=lines0[y];
+        if(line.some(function(it){return /^Ort/i.test(it.str.trim());})){
+          var dl=line.filter(function(it){return /\.{5,}/.test(it.str)&&it.x<p0.pageW*0.55;});
+          if(dl.length&&vals.ortdat) fields.push({page:0,x:dl[0].x+2,y:dl[0].y+1,text:vals.ortdat,align:'left'});
+        }
+      });
+    }
+
+    // ── LV PAGES ────────────────────────────────────────────
+    for(var pi2=1;pi2<pageData.length;pi2++){
+      var pd=pageData[pi2];
+      var isBauPlus=pd.items.some(function(it){return it.str==='SKI';});
+      var bauEpX=null,bauEpW=null,bauGpX=null,bauGpW=null;
+
+      if(isBauPlus){
+        // Measure columns from first SKI line
+        for(var li=0;li<pd.items.length;li++){
+          var it=pd.items[li];
+          if(it.str!=='SKI') continue;
+          // Find last A on same Y
+          var sameY=pd.items.filter(function(x){return Math.abs(x.y-it.y)<3&&x.str.trim()==='A'&&x.x>pd.pageW*0.48;});
+          if(!sameY.length) continue;
+          var lastA=sameY[sameY.length-1];
+          var start=lastA.x+(lastA.w||6)+2;
+          var avail=pd.pageW-start-4;
+          if(avail<50) continue;
+          bauEpX=start; bauEpW=avail*0.47;
+          bauGpX=start+avail*0.51; bauGpW=avail*0.47;
+          break;
+        }
+      }
+
+      // Group into lines
+      var linesN={};
+      pd.items.forEach(function(it){
+        var ky=Math.round(it.y);
+        if(!linesN[ky]) linesN[ky]=[];
+        linesN[ky].push(it);
+      });
+
+      var pricePos=(currentOfferte&&currentOfferte.positionen||[]).filter(function(p){return !p.is_total&&p.ep>0&&p.qty>0;});
+      var posMap={};
+      pricePos.forEach(function(p){posMap[p.pos_nr]={ep:p.ep,gp:p.ep*p.qty,qty:p.qty};});
+
+      Object.keys(linesN).forEach(function(ky){
+        var line=linesN[ky];
+        var y=parseFloat(ky);
+
+        if(isBauPlus&&bauEpX!==null){
+          // Only on SKI lines
+          if(!line.some(function(it){return it.str==='SKI';})) return;
+          // Find pos_nr from this line
+          var posNrItem=line.find(function(it){return /^\.\d{3}/.test(it.str.trim());});
+          var matchedEp=0,matchedGp=0;
+          if(posNrItem&&posMap[posNrItem.str.trim()]){
+            matchedEp=posMap[posNrItem.str.trim()].ep;
+            matchedGp=posMap[posNrItem.str.trim()].gp;
+          }
+          if(matchedEp>0){
+            fields.push({page:pi2,x:bauEpX+bauEpW-2,y:y+1,text:fCH(matchedEp),align:'right',width:bauEpW});
+            fields.push({page:pi2,x:bauGpX+bauGpW-2,y:y+1,text:fCH(matchedGp),align:'right',width:bauGpW});
+          }
+        } else {
+          // NPK: find dot items right of 55%
+          var dots=line.filter(function(it){return /\.{4,}/.test(it.str)&&it.x>=pd.pageW*0.55;});
+          if(!dots.length) return;
+          var txt2=line.filter(function(it){return !/\.{4,}/.test(it.str);}).map(function(it){return it.str;}).join(' ').trim();
+          if(/total/i.test(txt2)) return;
+          var posNr2=txt2.match(/(\.\d{3})/);
+          if(posNr2&&posMap[posNr2[1]]){
+            var ep2=posMap[posNr2[1]].ep, gp2=posMap[posNr2[1]].gp;
+            if(dots[0]) fields.push({page:pi2,x:dots[0].x+dots[0].w-2,y:y+1,text:fCH(ep2),align:'right',width:dots[0].w});
+            if(dots[1]) fields.push({page:pi2,x:dots[1].x+dots[1].w-2,y:y+1,text:fCH(gp2),align:'right',width:dots[1].w});
+          }
+        }
+      });
+    }
+
+    console.log('[IntelligentExport] '+fields.length+' Felder gefunden und platziert');
+
+    // Step 4: Write fields into original PDF with pdf-lib
+    updateSpinner('pdf-lib schreibt '+fields.length+' Felder ins Original-PDF...');
     var {PDFDocument,rgb,StandardFonts}=PDFLib;
-    var bytes=Uint8Array.from(atob(currentPdfB64),function(c){return c.charCodeAt(0);});
-    var doc=await PDFDocument.load(bytes);
+    var pdfBytes=Uint8Array.from(atob(currentPdfB64),function(c){return c.charCodeAt(0);});
+    var doc=await PDFDocument.load(pdfBytes);
     var font=await doc.embedFont(StandardFonts.Helvetica);
     var fontB=await doc.embedFont(StandardFonts.HelveticaBold);
     var blue=rgb(0,0,0.7);
-    var pages=doc.getPages();
-    var p0=pages[0];
-    var pH=p0.getHeight(); // A4 = 841.89pt
+    var pages2=doc.getPages();
 
-    // Read form values
-    var name=document.getElementById('fName').value||'Karl Morf AG';
-    var addr1=document.getElementById('fAddr1').value||'Aspstrasse 6';
-    var addr2=document.getElementById('fAddr2').value||'8154 Oberglatt';
-    var tel=document.getElementById('fTel').value||'+41 44 852 30 00';
-    var mobile=document.getElementById('fMobile').value||'';
-    var sachb=document.getElementById('fSachb').value||'';
-    var ortdat=document.getElementById('fOrtDatum').value||'';
-    var rabattPct=parseFloat(document.getElementById('fRabattPct').value)||0;
-
-    // Calculate totals
-    var pos=currentOfferte&&currentOfferte.positionen||[];
-    var brutto=0;
-    pos.forEach(function(p){if(!p.is_total&&p.ep>0&&p.qty>0)brutto+=p.ep*p.qty;});
-    var rabatt=brutto*rabattPct/100;
-    var netto=brutto-rabatt;
-    var mwst=netto*0.081;
-    var total=netto+mwst;
-    var fmtCH=function(n){return Number(n).toLocaleString('de-CH',{minimumFractionDigits:2,maximumFractionDigits:2});};
-
-    function txt(pg,text,x,y,sz,f,col){
-      if(!text) return;
-      try{pg.drawText(String(text),{x:x,y:y,size:sz||9,font:f||font,color:col||blue});}
-      catch(e){console.warn('drawText err',e);}
-    }
-
-    // ── COVER PAGE (Seite 0) ─────────────────────────────
-    // Calibrated coordinates for BauPlus A4 LV (595x842pt, y=0 bottom)
-    // Unternehmer block (left column)
-    txt(p0,name,       195,498,9,fontB);
-    txt(p0,addr1,      195,484,9);
-    txt(p0,addr2,      195,470,9);
-    txt(p0,sachb?'Sachbearbeiter: '+sachb:'',195,445,9);
-
-    // Tel / Mobile (right column, same Y as Unternehmer lines)
-    txt(p0,tel,        445,498,9);
-    if(mobile) txt(p0,mobile,445,484,9);
-
-    // Offertsumme Eingabe column (x~370)
-    txt(p0,fmtCH(brutto),      370,278,9);
-    if(rabattPct>0){
-      txt(p0,fmtCH(rabatt),    370,264,9);
-    }
-    txt(p0,fmtCH(mwst),        370,250,9);
-    txt(p0,fmtCH(total),       370,225,9,fontB);
-
-    // Ort/Datum
-    txt(p0,ortdat,     130,95,9);
-
-    // ── LV PAGES ─────────────────────────────────────────
-    // Write EP and GP for each position on correct pages
-    // This uses approximate Y positions - will be calibrated after first test
-    var pageEpX=390, pageGpX=478, pageW=18;
-    var currentY=null, currentPage=0;
-
-    // Group positions by writing them sequentially
-    // We'll just test with first few positions on page 1
-    var pricePos=pos.filter(function(p){return !p.is_total&&p.ep>0&&p.qty>0;});
-    console.log('[TestExport] '+pricePos.length+' Preispositionen');
-
-    // For testing: write a visible marker on each LV page
-    for(var pi3=1;pi3<pages.length;pi3++){
-      pages[pi3].drawText('TEST-EXPORT OK',{x:200,y:20,size:7,font:font,color:rgb(0.8,0,0)});
-    }
+    fields.forEach(function(f){
+      var pg=pages2[f.page]; if(!pg) return;
+      var sz=f.size||9;
+      var useFont=f.bold?fontB:font;
+      var text=String(f.text||'');
+      var drawX=f.x;
+      if(f.align==='right'){
+        var tw=useFont.widthOfTextAtSize(text,sz);
+        drawX=f.x-tw;
+      }
+      try{pg.drawText(text,{x:drawX,y:f.y,size:sz,font:useFont,color:blue});}
+      catch(e){console.warn('drawText:',e,f);}
+    });
 
     var filledBytes=await doc.save();
     var blob=new Blob([filledBytes],{type:'application/pdf'});
     var url=URL.createObjectURL(blob);
     var a=document.createElement('a');a.href=url;
     var morfNr=document.getElementById('fMorfProjektNr').value.trim();
-    var bauvorh=(document.getElementById('fBauvorhaben').value||'Test')
-               .replace(/[^a-zA-Z0-9äöüÄÖÜ\s-]/g,'').replace(/\s+/g,'-');
-    a.download='TEST-Angebot-'+(morfNr||'00000')+'-'+bauvorh+'.pdf';
+    var bauvorh=(document.getElementById('fBauvorhaben').value||'Offerte').replace(/[^a-zA-Z0-9äöüÄÖÜ\s-]/g,'').replace(/\s+/g,'-');
+    a.download=(morfNr?'Angebot-'+morfNr+'-':'')+bauvorh+'.pdf';
     a.click();
     URL.revokeObjectURL(url);
     hideSpinner();
-    showToast('✓ Test-Export: Deckblatt-Werte eingetragen. Öffne PDF und prüfe Positionen!','ok');
+    showToast('✓ '+fields.length+' Felder direkt aus PDF-Koordinaten eingetragen','ok');
+
   }catch(e){
     hideSpinner();
     console.error(e);
-    showToast('Test-Export Fehler: '+e.message,'err');
+    showToast('Fehler: '+e.message,'err');
   }
 }
+
 
 async function doExport(){
   if(!currentOfferte){showToast('Keine Offerte geladen','err');return;}

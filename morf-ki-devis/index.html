@@ -537,6 +537,7 @@ async function handleFile(file){
     r.readAsDataURL(file);
   });
   currentPdfB64=b64; // store AFTER reading
+  document.getElementById('testExportBtn').style.display='';
 
   updateSpinner(isTestMode?'Test-Modus — kein API-Call':'Claude analysiert Offerte (1 API-Call)...');
 
@@ -554,6 +555,7 @@ async function handleFile(file){
     };
     hideSpinner();
     renderOfferte(mockOfferte);
+    document.getElementById('testExportBtn').style.display='';
     if(parsedProjNr){
       document.getElementById('fMorfProjektNr').value=parsedProjNr;
       onMorfProjNrInput(parsedProjNr);

@@ -324,7 +324,7 @@ body{font-family:var(--font);font-size:13px;background:var(--bg);color:var(--tex
   <div class="drop-screen">
     <div class="drop-card">
       <div class="eyebrow">LV-Offerte</div>
-      <div style="font-family:var(--mono);font-size:9px;color:var(--dim);margin-bottom:8px">Deploy: 13.04.2026 08:04</div>
+      <div style="font-family:var(--mono);font-size:9px;color:var(--dim);margin-bottom:8px">Deploy: 13.04.2026 08:08</div>
       <h1>Leistungsverzeichnis<br>ausfüllen</h1>
       <div class="drop-zone" id="dropZone"
         ondragover="event.preventDefault();this.classList.add('over')"
@@ -926,6 +926,8 @@ async function runClaudeParser(){
 
       // Detect price rows: dots, SFr., or BauPlus "A....A" pattern right of 55%
       var dotThresholdX=pageW*0.55;
+      // Detect BauPlus format: has "SKI" text with "A" markers
+      var isBauPlusPage=allItems.some(function(it){return it.str==='SKI';});
       var uebertragRow=null;
       var pdfRows=[];
       lines.forEach(function(line){
@@ -1003,11 +1005,19 @@ async function runClaudeParser(){
         }
         var epDot=dots[0];
         var gpDot=dots.length>1?dots[dots.length-1]:null;
-        // BauPlus: one wide dot group covers both EP+GP columns → split in half
-        if(!gpDot&&epDot&&epDot.w>pageW*0.25){
-          var hw=epDot.w*0.49;
-          gpDot={x:epDot.x+hw+4,y:epDot.y,w:hw,str:'.......',h:epDot.h||8};
-          epDot={x:epDot.x,y:epDot.y,w:hw,str:'.......',h:epDot.h||8};
+        // BauPlus: split wide single dot into EP+GP
+        // Use lower threshold (15%) and also split at fixed GP column if "A" marker found
+        if(!gpDot&&!hasSFr){
+          if(epDot&&epDot.w>pageW*0.15){
+            var hw=epDot.w*0.49;
+            gpDot={x:epDot.x+hw+4,y:epDot.y,w:hw,str:'.......',h:epDot.h||8};
+            epDot={x:epDot.x,y:epDot.y,w:hw,str:'.......',h:epDot.h||8};
+          } else if(epDot&&isBauPlusPage){
+            // BauPlus fixed columns: GP is always right of EP
+            var gpX=epDot.x+epDot.w+3;
+            var gpW=pageW-gpX-3;
+            if(gpW>20) gpDot={x:gpX,y:epDot.y,w:gpW,str:'.......',h:epDot.h||8};
+          }
         }
         pdfRows.push({y:line.y,text:txt,ep:epDot,gp:gpDot});
       });
@@ -1017,12 +1027,14 @@ async function runClaudeParser(){
       });
       if(isCoverPage){
         lines.forEach(function(line){
-          var ldots=line.items.filter(function(it){return /\.{6,}/.test(it.str)&&it.x<pageW*0.6;});
+          var ldots=line.items.filter(function(it){return /\.{6,}/.test(it.str)&&it.x<pageW*0.55;});
           if(!ldots.length) return;
           var rowTxt=line.items.filter(function(it){return !/\.{3,}/.test(it.str);}).map(function(it){return it.str;}).join(' ').trim();
           var dl=ldots[0];
+          // Cover field: limit width to stay within the dotted line
+          var covW=Math.min(Math.max(dl.w||60,pageW*0.3),pageW*0.5);
           pdfRows.push({y:line.y,text:rowTxt||'cover',
-            ep:{x:dl.x,y:dl.y,w:Math.max(dl.w||60,pageW*0.4),str:dl.str,h:dl.h||8},
+            ep:{x:dl.x,y:dl.y,w:covW,str:dl.str,h:dl.h||8},
             gp:null,isCover:true});
         });
       }

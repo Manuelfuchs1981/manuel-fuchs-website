@@ -273,7 +273,8 @@ input[type=file]{display:none}
     <button class="tab-btn" id="tabLV" style="display:none" onclick="showTab('lv')">📄 LV ausfüllen</button>
     <button class="btn" id="exportBtn" style="display:none" onclick="doExport()">⬇ Export PDF</button>
     <button class="btn" id="saveBtn" style="display:none" onclick="doSave()">💾 Speichern</button>
-    <button class="btn" id="testModeBtn" onclick="activateTestMode()" title="Testet Dateiname, Filiale, Export ohne API-Call">🧪 Test</button>
+    <button class="btn" id="testModeBtn" onclick="activateTestMode()" title="Testet Dateiname, Filiale ohne API-Call">🧪 Test</button>
+    <button class="btn" id="testExportBtn" style="display:none" onclick="testExportPdf()" title="Schreibt Testwerte direkt ins PDF - kein API-Call">🧪 Export-Test</button>
     <button class="btn" onclick="toggleDrawer()">⚙</button>
   </div>
 </div>
@@ -1253,6 +1254,105 @@ function updateTotals(){
 }
 
 // ── PDF EXPORT ──────────────────────────────────────────────
+// ── TEST EXPORT (browser-only, kein API-Call) ────────────────
+async function testExportPdf(){
+  if(!currentPdfB64){showToast('PDF hochladen','err');return;}
+  showSpinner('Test: Schreibe Werte direkt ins PDF...');
+  try{
+    var {PDFDocument,rgb,StandardFonts}=PDFLib;
+    var bytes=Uint8Array.from(atob(currentPdfB64),function(c){return c.charCodeAt(0);});
+    var doc=await PDFDocument.load(bytes);
+    var font=await doc.embedFont(StandardFonts.Helvetica);
+    var fontB=await doc.embedFont(StandardFonts.HelveticaBold);
+    var blue=rgb(0,0,0.7);
+    var pages=doc.getPages();
+    var p0=pages[0];
+    var pH=p0.getHeight(); // A4 = 841.89pt
+
+    // Read form values
+    var name=document.getElementById('fName').value||'Karl Morf AG';
+    var addr1=document.getElementById('fAddr1').value||'Aspstrasse 6';
+    var addr2=document.getElementById('fAddr2').value||'8154 Oberglatt';
+    var tel=document.getElementById('fTel').value||'+41 44 852 30 00';
+    var mobile=document.getElementById('fMobile').value||'';
+    var sachb=document.getElementById('fSachb').value||'';
+    var ortdat=document.getElementById('fOrtDatum').value||'';
+    var rabattPct=parseFloat(document.getElementById('fRabattPct').value)||0;
+
+    // Calculate totals
+    var pos=currentOfferte&&currentOfferte.positionen||[];
+    var brutto=0;
+    pos.forEach(function(p){if(!p.is_total&&p.ep>0&&p.qty>0)brutto+=p.ep*p.qty;});
+    var rabatt=brutto*rabattPct/100;
+    var netto=brutto-rabatt;
+    var mwst=netto*0.081;
+    var total=netto+mwst;
+    var fmtCH=function(n){return Number(n).toLocaleString('de-CH',{minimumFractionDigits:2,maximumFractionDigits:2});};
+
+    function txt(pg,text,x,y,sz,f,col){
+      if(!text) return;
+      try{pg.drawText(String(text),{x:x,y:y,size:sz||9,font:f||font,color:col||blue});}
+      catch(e){console.warn('drawText err',e);}
+    }
+
+    // ── COVER PAGE (Seite 0) ─────────────────────────────
+    // These coordinates are for BauPlus A4 LV format
+    // Unternehmer block (left column, ~y=630-580)
+    txt(p0,name,       195,630,9,fontB);
+    txt(p0,addr1,      195,616,9);
+    txt(p0,addr2,      195,602,9);
+    txt(p0,sachb?'Sachbearbeiter: '+sachb:'',195,574,9);
+
+    // Tel / Mobile (right column)
+    txt(p0,tel,        445,630,9);
+    if(mobile) txt(p0,mobile,445,616,9);
+
+    // Offertsumme (y ~490-440)
+    txt(p0,fmtCH(brutto),      370,486,9);
+    if(rabattPct>0){
+      txt(p0,fmtCH(rabatt),    370,472,9);
+    }
+    txt(p0,fmtCH(mwst),        370,458,9);
+    txt(p0,fmtCH(total),       370,432,9,fontB);
+
+    // Ort/Datum
+    txt(p0,ortdat,     130,108,9);
+
+    // ── LV PAGES ─────────────────────────────────────────
+    // Write EP and GP for each position on correct pages
+    // This uses approximate Y positions - will be calibrated after first test
+    var pageEpX=390, pageGpX=478, pageW=18;
+    var currentY=null, currentPage=0;
+
+    // Group positions by writing them sequentially
+    // We'll just test with first few positions on page 1
+    var pricePos=pos.filter(function(p){return !p.is_total&&p.ep>0&&p.qty>0;});
+    console.log('[TestExport] '+pricePos.length+' Preispositionen');
+
+    // For testing: write a visible marker on each LV page
+    for(var pi3=1;pi3<pages.length;pi3++){
+      pages[pi3].drawText('TEST-EXPORT OK',{x:200,y:20,size:7,font:font,color:rgb(0.8,0,0)});
+    }
+
+    var filledBytes=await doc.save();
+    var blob=new Blob([filledBytes],{type:'application/pdf'});
+    var url=URL.createObjectURL(blob);
+    var a=document.createElement('a');a.href=url;
+    var morfNr=document.getElementById('fMorfProjektNr').value.trim();
+    var bauvorh=(document.getElementById('fBauvorhaben').value||'Test')
+               .replace(/[^a-zA-Z0-9äöüÄÖÜ\s-]/g,'').replace(/\s+/g,'-');
+    a.download='TEST-Angebot-'+(morfNr||'00000')+'-'+bauvorh+'.pdf';
+    a.click();
+    URL.revokeObjectURL(url);
+    hideSpinner();
+    showToast('✓ Test-Export: Deckblatt-Werte eingetragen. Öffne PDF und prüfe Positionen!','ok');
+  }catch(e){
+    hideSpinner();
+    console.error(e);
+    showToast('Test-Export Fehler: '+e.message,'err');
+  }
+}
+
 async function doExport(){
   if(!currentOfferte){showToast('Keine Offerte geladen','err');return;}
   if(!currentPdfB64){showToast('Bitte zuerst PDF hochladen','err');return;}

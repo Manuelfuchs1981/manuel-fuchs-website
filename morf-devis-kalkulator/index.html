@@ -325,7 +325,7 @@ body{font-family:var(--font);font-size:13px;background:var(--bg);color:var(--tex
   <div class="drop-screen">
     <div class="drop-card">
       <div class="eyebrow">LV-Offerte</div>
-      <div style="font-family:var(--mono);font-size:9px;color:var(--dim);margin-bottom:8px">Deploy: 13.04.2026 10:22</div>
+      <div style="font-family:var(--mono);font-size:9px;color:var(--dim);margin-bottom:8px">Deploy: 13.04.2026 10:33</div>
       <h1>Leistungsverzeichnis<br>ausfüllen</h1>
       <div class="drop-zone" id="dropZone"
         ondragover="event.preventDefault();this.classList.add('over')"
@@ -965,7 +965,9 @@ async function runClaudeParser(){
               return /\.{6,}/.test(it.str)&&it.x<pageW*0.53&&!/%/.test(it.str);
             });
             leftDots.forEach(function(dl){
-              var w=Math.min(dl.w||pageW*0.38,pageW*0.42);
+              // Clamp to page right boundary minus margin
+              var maxW=pageW*0.52-dl.x; // don't exceed 52% of page
+              var w=Math.min(dl.w||maxW,maxW);
               pdfRows.push({y:line.y,text:rowTxt,
                 ep:{x:dl.x,y:dl.y,w:w,str:dl.str,h:dl.h||8},
                 gp:null,isCover:true});
@@ -973,10 +975,11 @@ async function runClaudeParser(){
           }
           if(!hasFr){
             var rightDots=allItems2.filter(function(it){
-              return /\.{5,}/.test(it.str)&&it.x>=pageW*0.55;
+              return /\.{4,}/.test(it.str)&&it.x>=pageW*0.53;
             });
             rightDots.forEach(function(dl){
-              var w=Math.min(dl.w||50,pageW*0.20);
+              var maxRW=pageW*0.97-dl.x; // don't exceed right margin
+              var w=Math.min(dl.w||maxRW,Math.min(maxRW,pageW*0.22));
               pdfRows.push({y:line.y,text:rowTxt,
                 ep:{x:dl.x,y:dl.y,w:w,str:dl.str,h:dl.h||8},
                 gp:null,isCover:true});

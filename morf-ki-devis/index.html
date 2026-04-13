@@ -499,6 +499,18 @@ async function handleFile(file){
   if(!apiKey){showToast('Bitte zuerst API-Key in ⚙ Einstellungen eingeben','err');toggleDrawer();return;}
 
   currentPdfName=file.name;
+
+  // Parse filename: Angebot-{ProjNr}-{Bezeichnung}.pdf
+  var fnMatch=file.name.replace(/\.pdf$/i,'').match(/^Angebot-?([0-9]+)-?(.+)$/i);
+  if(fnMatch){
+    var parsedProjNr=fnMatch[1].trim();
+    var parsedName=fnMatch[2].replace(/[_-]+/g,' ').trim();
+    document.getElementById('fMorfProjektNr').value=parsedProjNr;
+    document.getElementById('fBauvorhaben').value=parsedName;
+    onMorfProjNrInput(parsedProjNr); // auto-detect Filiale
+    console.log('[Dateiname] ProjNr='+parsedProjNr+' Name='+parsedName);
+  }
+
   showSpinner('PDF wird gelesen...');
 
   // PDF to base64

@@ -449,8 +449,7 @@ async function handleFile(file){
 
   try{
     var {data:{session}}=await supabase.auth.getSession();
-    if(!session||!session.session){showToast('Bitte neu anmelden','err');hideSpinner();return;}
-    session=session.session;
+    if(!session){showToast('Bitte neu anmelden','err');hideSpinner();return;}
     var resp=await fetch(EDGE_URL,{
       method:'POST',
       headers:{

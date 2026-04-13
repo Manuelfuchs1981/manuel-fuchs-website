@@ -147,6 +147,7 @@ body{font-family:var(--font);font-size:13px;background:var(--bg);color:var(--tex
   background:rgba(220,220,220,0.55);border:1px solid rgba(140,140,140,0.7);
   font-family:Arial,sans-serif;font-size:10px;color:#0000ff;
   text-align:right;padding:1px 4px;outline:none;border-radius:0}
+.fill-field.cover-field{text-align:left!important;padding-left:4px!important;padding-right:1px!important}
 .fill-field:focus{border-color:#4a90d9;background:#eef2ff}
 .fill-field.filled{background:rgba(200,225,200,0.65);color:#0000ff}
 .fill-field.gp{background:rgba(200,215,230,0.55);cursor:default}
@@ -324,7 +325,7 @@ body{font-family:var(--font);font-size:13px;background:var(--bg);color:var(--tex
   <div class="drop-screen">
     <div class="drop-card">
       <div class="eyebrow">LV-Offerte</div>
-      <div style="font-family:var(--mono);font-size:9px;color:var(--dim);margin-bottom:8px">Deploy: 13.04.2026 08:36</div>
+      <div style="font-family:var(--mono);font-size:9px;color:var(--dim);margin-bottom:8px">Deploy: 13.04.2026 10:21</div>
       <h1>Leistungsverzeichnis<br>ausfüllen</h1>
       <div class="drop-zone" id="dropZone"
         ondragover="event.preventDefault();this.classList.add('over')"
@@ -952,12 +953,19 @@ async function runClaudeParser(){
 
           // Left-side dotted lines (x < 53%): Unternehmer, Sachbearbeiter, Ort/Datum
           // Skip for Offertsumme rows (hasFr) - those are handled separately below
+          // Rabatt %: detect dotted % field (e.g. "........%")
+          var pctDot=allItems2.filter(function(it){return /\.{3,}%/.test(it.str)||(/\.{3,}/.test(it.str)&&it.x<pageW*0.45&&allItems2.some(function(it2){return it2.str.trim()==='%'&&Math.abs(it2.x-(it.x+it.w))<20;}));});
+          pctDot.forEach(function(dl){
+            var w=Math.min(dl.w||40,pageW*0.08);
+            pdfRows.push({y:line.y,text:rowTxt,ep:{x:dl.x,y:dl.y,w:w,str:dl.str,h:dl.h||8},gp:null,isCover:true});
+          });
+
           if(!hasFr){
             var leftDots=allItems2.filter(function(it){
               return /\.{6,}/.test(it.str)&&it.x<pageW*0.53&&!/%/.test(it.str);
             });
             leftDots.forEach(function(dl){
-              var w=Math.min(Math.max(dl.w||80,pageW*0.28),pageW*0.46);
+              var w=Math.min(dl.w||pageW*0.38,pageW*0.42);
               pdfRows.push({y:line.y,text:rowTxt,
                 ep:{x:dl.x,y:dl.y,w:w,str:dl.str,h:dl.h||8},
                 gp:null,isCover:true});
@@ -968,7 +976,7 @@ async function runClaudeParser(){
               return /\.{5,}/.test(it.str)&&it.x>=pageW*0.55;
             });
             rightDots.forEach(function(dl){
-              var w=Math.min(dl.w||60,pageW*0.23);
+              var w=Math.min(dl.w||50,pageW*0.20);
               pdfRows.push({y:line.y,text:rowTxt,
                 ep:{x:dl.x,y:dl.y,w:w,str:dl.str,h:dl.h||8},
                 gp:null,isCover:true});
@@ -1147,7 +1155,7 @@ async function runClaudeParser(){
           if(parsedPos[key]) key+='_'+Math.round(matchLine.y);
           parsedPos[key]={pos:cl.pos||key, qty:cl.qty||0, unit:cl.unit||'',
             ep:0, status:row.isKapitelTotal?'kapitelTotal':row.isCover?'cover':'price', isCover:row.isCover||false, pageIdx:pi, canvasW:canvas.width, canvasH:canvas.height,
-            epBox:epBox, gpBox:null};
+            epBox:epBox, gpBox:gpBox};
           placeField(key, overlay, parsedPos[key]);
           console.log('[Match]', cl.pos, 'qty='+qty, 'unit='+unit,
             'y='+matchLine.y.toFixed(1), 'fieldX='+fieldX.toFixed(1));
@@ -1335,7 +1343,7 @@ function makeField(key,type,box,isCoverField){
   el.style.left=box.x+'px';el.style.top=box.y+'px';
   el.style.width=box.w+'px';el.style.height=box.h+'px';
   el.style.fontSize='10px';
-  if(isCoverField){el.style.textAlign='left';el.style.paddingLeft='3px';el.style.paddingRight='0';el.style.background='rgba(255,252,200,0.95)';}
+  if(isCoverField){el.className+=' cover-field';el.style.background='rgba(255,252,200,0.95)';}
   return el;
 }
 

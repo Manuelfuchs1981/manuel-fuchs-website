@@ -668,16 +668,21 @@ async function showHistory(){
 
   var rows='';
   data.forEach(function(o){
-    rows+='<tr onclick="loadOfferte(''+o.id+'')" style="cursor:pointer" title="Klicken zum Öffnen">'+
+    var cnt=countMap[o.id]||0;
+    rows+='<tr data-oid="'+o.id+'" class="hist-row" style="cursor:pointer" title="Klicken zum Öffnen">'+
       '<td><strong>'+esc(o.bauvorhaben||o.titel||'–')+'</strong></td>'+
       '<td style="font-family:var(--mono);color:var(--text2)">'+esc(o.projekt_nr||'–')+'</td>'+
       '<td>'+esc(o.datum||'–')+'</td>'+
       '<td style="font-family:var(--mono)">'+((o.brutto||0)>0?'Fr. '+fmtN(o.brutto):'–')+'</td>'+
-      '<td style="color:var(--text2)">'+(countMap[o.id]||0)+' Pos.</td>'+
-      '<td><button class="btn" onclick="event.stopPropagation();loadOfferte(''+o.id+'')">Öffnen →</button></td>'+
+      '<td style="color:var(--text2)">'+cnt+' Pos.</td>'+
+      '<td><button class="btn">Öffnen →</button></td>'+
       '</tr>';
   });
   document.getElementById('histRows').innerHTML=rows;
+  // Attach click handlers after DOM insert
+  document.querySelectorAll('.hist-row').forEach(function(tr){
+    tr.addEventListener('click',function(){loadOfferte(this.dataset.oid);});
+  });
 }
 
 async function loadOfferte(offerteId){

@@ -224,16 +224,6 @@ body{font-family:var(--font);font-size:13px;background:var(--bg);color:var(--tex
 .cond-item-edit{background:none;border:none;cursor:pointer;color:var(--dim);
   font-size:11px;padding:0 3px;opacity:.5;flex-shrink:0}
 .cond-item-edit:hover{color:#927200;opacity:1}
-.cond-drag-handle{background:none;border:none;cursor:grab;color:var(--dim);
-  font-size:13px;padding:0 4px 0 0;opacity:.35;flex-shrink:0;user-select:none}
-.cond-drag-handle:hover{opacity:.8;cursor:grab}
-.cond-flat-item{display:flex;align-items:center;gap:8px;padding:8px 10px;
-  background:var(--surface);border:1.5px solid var(--border);border-radius:7px;
-  margin-bottom:5px;cursor:grab;user-select:none;font-size:11px;color:var(--text)}
-.cond-flat-item:hover{border-color:var(--border2)}
-.cond-flat-item.drag-over{border-top:2px solid var(--yellow);border-color:var(--yellow)}
-.cond-item.dragging{opacity:.35;background:#fff8cc}
-.cond-item.drag-over{border-top:2px solid var(--yellow)}
 .cond-edit-form{background:#fff8cc;border:1px solid var(--yellow);border-radius:7px;
   padding:10px;margin:4px 0 8px 0}
 .cond-item-del{margin-left:auto;background:none;border:none;cursor:pointer;
@@ -334,7 +324,7 @@ body{font-family:var(--font);font-size:13px;background:var(--bg);color:var(--tex
   <div class="drop-screen">
     <div class="drop-card">
       <div class="eyebrow">LV-Offerte</div>
-      <div style="font-family:var(--mono);font-size:9px;color:var(--dim);margin-bottom:8px">Deploy: 13.04.2026 07:39</div>
+      <div style="font-family:var(--mono);font-size:9px;color:var(--dim);margin-bottom:8px">Deploy: 13.04.2026 07:50</div>
       <h1>Leistungsverzeichnis<br>ausfüllen</h1>
       <div class="drop-zone" id="dropZone"
         ondragover="event.preventDefault();this.classList.add('over')"
@@ -455,6 +445,7 @@ var PROJ_FILIALE = {
   '181': {code:'FZS', name:'Filiale Zentralschweiz',   ort:'Cham'},
   '191': {code:'DAV', name:'DAV-Zürich',                 ort:'Zürich'},
 };
+var MORF_FIRMA={name:'Karl Morf AG',addr1:'Aspstrasse 6',addr2:'8154 Oberglatt',tel:'+41 44 852 30 00'};
 function cw(str,sz){var W=0;for(var i=0;i<str.length;i++){var ch=str.charCodeAt(i);if(ch===39||ch===8217||ch===46||ch===44)W+=0.278;else if(ch===32)W+=0.278;else W+=0.556;}return W*sz;}
 var COND_CATS = {
   'Parkplätze': [
@@ -657,7 +648,6 @@ function clearFill(){
 // ── CONDITIONS ────────────────────────────────────────────────
 function buildCondPanel(){
   var cats=document.getElementById('condCats'); cats.innerHTML='';
-  if(_sortMode){ buildSortModePanel(); return; }
 
   // Group by kategorie
   var groups={};
@@ -697,14 +687,6 @@ function buildCondPanel(){
       item.appendChild(cb); item.appendChild(lbl);
       // Edit + Delete — proper DOM approach
       if(entry.id){
-        // Drag handle
-        var dragH=document.createElement('button'); dragH.className='cond-drag-handle';
-        dragH.innerHTML='&#8942;&#8942;'; dragH.title='Verschieben';
-        dragH.style.cssText='background:none;border:none;cursor:grab;color:var(--dim);font-size:11px;padding:0 4px 0 0;opacity:.35;flex-shrink:0';
-        item.insertBefore(dragH,item.firstChild);
-        // Wire drag-and-drop
-        setupDragItem(item,entry);
-
         var editBtn=document.createElement('button'); editBtn.className='cond-item-edit';
         editBtn.innerHTML='&#9998;'; editBtn.title='Bearbeiten';
         var delBtn=document.createElement('button'); delBtn.className='cond-item-del';
@@ -750,12 +732,6 @@ function buildCondPanel(){
   });
 
   // Add new condition button
-  var sortModeBtn=document.createElement('button');
-  sortModeBtn.style.cssText='width:100%;padding:6px 10px;background:none;border:1.5px solid var(--border2);border-radius:6px;cursor:pointer;font-family:var(--font);font-size:11px;color:var(--muted);margin-top:8px;text-align:center';
-  sortModeBtn.textContent='⇅ Reihenfolge ändern ('+(activeConds.length)+' ausgewählt)';
-  sortModeBtn.addEventListener('click',toggleSortMode);
-  cats.appendChild(sortModeBtn);
-
   var addBtn=document.createElement('button'); addBtn.className='cond-add-btn';
   addBtn.innerHTML='+ Neue Bedingung hinzufügen';
   var addForm=document.createElement('div'); addForm.className='cond-add-form';
@@ -802,17 +778,18 @@ function updateCondPreview(){
 }
 
 function getActiveConds(){
-  // activeConds is authoritative. Sync manual preview edits back first.
+  // Read directly from editable preview — user may have modified text
   var preview=document.getElementById('condPreview');
-  if(preview && preview.innerText.trim() && activeConds.length>0){
-    var lines=preview.innerText.split(/\n/).map(function(l){
+  if(preview && preview.textContent.trim()){
+    // Split on bullet points
+    return preview.textContent.split(/\n/).map(function(l){
       return l.replace(/^[•\-\s]+/,'').trim();
-    }).filter(function(l){return l.length>0;});
-    if(lines.length===activeConds.length){
-      lines.forEach(function(line,i){ activeConds[i].text=line; });
-    }
+    }).filter(function(l){ return l.length>0; });
   }
-  return activeConds.map(function(a){ return a.text; });
+  var manual=document.getElementById('condManual')?document.getElementById('condManual').value.trim():'';
+  var lines=activeConds.map(function(c){ return c.text; });
+  if(manual) manual.split('\n').forEach(function(l){ if(l.trim()) lines.push(l.trim()); });
+  return lines;
 }
 
 // ── BEDINGUNGEN aus Supabase ──────────────────────────────────
@@ -853,56 +830,6 @@ async function deleteBedingung(id){
   buildCondPanel();
 }
 
-// ── DRAG & DROP sort order ────────────────────────────────────
-var _dragSrcId=null, _dragSrcKat=null;
-
-async function saveSortOrder(katName){
-  if(!supabase) return;
-  var items=dbBedingungen.filter(function(b){return b.kategorie===katName;});
-  // update each item's sort_order based on current array position
-  var promises=items.map(function(b,i){
-    return supabase.from('bedingungen').update({sort_order:i}).eq('id',b.id);
-  });
-  await Promise.all(promises);
-}
-
-function setupDragItem(itemEl, entry){
-  itemEl.draggable=true;
-  itemEl.addEventListener('dragstart',function(e){
-    _dragSrcId=entry.id; _dragSrcKat=entry.kategorie;
-    e.dataTransfer.effectAllowed='move';
-    e.dataTransfer.setData('text/plain',entry.id);
-    setTimeout(function(){ itemEl.classList.add('dragging'); },0);
-  });
-  itemEl.addEventListener('dragend',function(){
-    itemEl.classList.remove('dragging');
-    document.querySelectorAll('.cond-item').forEach(function(el){
-      el.classList.remove('drag-over');
-    });
-  });
-  itemEl.addEventListener('dragover',function(e){
-    e.preventDefault(); e.dataTransfer.dropEffect='move';
-    document.querySelectorAll('.cond-item').forEach(function(el){
-      el.classList.remove('drag-over');
-    });
-    if(_dragSrcKat===entry.kategorie && _dragSrcId!==entry.id)
-      itemEl.classList.add('drag-over');
-  });
-  itemEl.addEventListener('drop',function(e){
-    e.preventDefault();
-    itemEl.classList.remove('drag-over');
-    if(!_dragSrcId||_dragSrcId===entry.id||_dragSrcKat!==entry.kategorie) return;
-    // Reorder in dbBedingungen array
-    var srcIdx=dbBedingungen.findIndex(function(b){return b.id===_dragSrcId;});
-    var dstIdx=dbBedingungen.findIndex(function(b){return b.id===entry.id;});
-    if(srcIdx<0||dstIdx<0) return;
-    var moved=dbBedingungen.splice(srcIdx,1)[0];
-    dbBedingungen.splice(dstIdx,0,moved);
-    saveSortOrder(entry.kategorie);
-    buildCondPanel();
-  });
-}
-
 async function updateBedingung(id,titel,text){
   if(!supabase) return;
   var {error}=await supabase.from('bedingungen').update({titel,text}).eq('id',id);
@@ -923,238 +850,47 @@ function toggleHamburger(){
     });
   },0);
 }
-// ── SORT MODE ─────────────────────────────────────────────────
-var _sortMode=false;
-
-function toggleSortMode(){
-  _sortMode=!_sortMode;
-  buildCondPanel();
-}
-
-function buildSortModePanel(){
-  var el=document.getElementById('condCats');
-  el.innerHTML='';
-
-  // Back button — always first
-  var back=document.createElement('button');
-  back.textContent='← Zurück';
-  back.style.cssText='width:100%;padding:8px;background:var(--text);color:#fff;border:none;'+
-    'border-radius:7px;font-family:var(--font);font-size:12px;font-weight:600;cursor:pointer;margin-bottom:10px';
-  back.addEventListener('click',function(){ _sortMode=false; buildCondPanel(); });
-  el.appendChild(back);
-
-  if(activeConds.length===0){
-    var msg=document.createElement('div');
-    msg.style.cssText='text-align:center;color:var(--muted);font-size:11px;padding:16px';
-    msg.textContent='Keine Bedingungen ausgewählt';
-    el.appendChild(msg);
-    return;
-  }
-
-  var hint=document.createElement('div');
-  hint.style.cssText='font-size:10px;color:var(--muted);padding:6px 8px;background:#fffbe6;'+
-    'border-radius:6px;border:1px solid #e8c800;margin-bottom:8px';
-  hint.textContent='⇅ Zeilen ziehen um Reihenfolge ändern — '+
-    activeConds.length+' ausgewählt';
-  el.appendChild(hint);
-
-  function renderRows(){
-    // Remove old rows
-    el.querySelectorAll('.cond-flat-item').forEach(function(r){r.remove();});
-    var dragSrc=null;
-
-    activeConds.forEach(function(entry,i){
-      var row=document.createElement('div');
-      row.className='cond-flat-item';
-
-      var grip=document.createElement('span');
-      grip.textContent='⠇';
-      grip.style.cssText='opacity:.35;font-size:14px;flex-shrink:0;pointer-events:none';
-
-      var lbl=document.createElement('span');
-      lbl.textContent=(entry.title||entry.text).slice(0,70);
-      lbl.style.cssText='flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;pointer-events:none';
-
-      row.appendChild(grip);
-      row.appendChild(lbl);
-      el.appendChild(row);
-
-      row.draggable=true;
-
-      row.addEventListener('dragstart',function(ev){
-        dragSrc=i;
-        ev.dataTransfer.effectAllowed='move';
-        ev.dataTransfer.setData('text/plain',String(i));
-        row.style.opacity='.3';
-      });
-      row.addEventListener('dragend',function(){
-        row.style.opacity='';
-        el.querySelectorAll('.cond-flat-item').forEach(function(r){
-          r.style.borderTop='';r.style.borderColor='';
-        });
-      });
-      row.addEventListener('dragover',function(ev){
-        ev.preventDefault();
-        el.querySelectorAll('.cond-flat-item').forEach(function(r){
-          r.style.borderTop='';r.style.borderColor='';
-        });
-        if(dragSrc!==null&&dragSrc!==i){
-          row.style.borderTop='2px solid var(--yellow)';
-          row.style.borderColor='var(--yellow)';
-        }
-      });
-      row.addEventListener('drop',function(ev){
-        ev.preventDefault();
-        row.style.borderTop='';row.style.borderColor='';
-        var src=parseInt(ev.dataTransfer.getData('text/plain'));
-        if(isNaN(src)||src===i) return;
-        var moved=activeConds.splice(src,1)[0];
-        var dst=src<i?i-1:i;
-        activeConds.splice(dst,0,moved);
-        updateCondPreview();
-        renderRows();
-      });
-    });
-  }
-
-  renderRows();
-}
-
 function toggleCond(){
   document.getElementById('condPanel').classList.toggle('open');
   document.getElementById('fillBody').classList.toggle('with-panel');
 }
-async function analyzePdfWithClaude(pdfBase64){
-  var APIKEY=localStorage.getItem('morfApiKey')||'';
-  if(!APIKEY){showToast('API-Key fehlt','err');return null;}
-
-  var prompt=
-    'This is a Swiss construction LV (Leistungsverzeichnis / Ausschreibung) PDF.\n'+
-    'Analyze the ENTIRE document and return ALL fields that need to be filled in.\n\n'+
-    'For EVERY field return these exact properties:\n'+
-    '- page: 0-based page number\n'+
-    '- y_pct: vertical position as % of page height (0=top, 100=bottom)\n'+
-    '- ep_x_pct: left edge of the field as % of page WIDTH\n'+
-    '- ep_w_pct: width of the field as % of page WIDTH\n'+
-    '- type: "ep" | "gp" | "total" | "cover"\n'+
-    '- pos: position number or label\n'+
-    '- qty: quantity (0 for per/pauschal rows)\n'+
-    '- unit: unit string\n\n'+
-    'COVER PAGE (page with "Unternehmer", "Offertsumme", "Ort, Datum"):\n'+
-    'Identify each blank dotted line and return a field for it:\n'+
-    '  Unternehmer name line (type=cover, pos="unternehmer_name")\n'+
-    '  Unternehmer addr line 2 (type=cover, pos="unternehmer_addr")\n'+
-    '  Tel. field right side (type=cover, pos="unternehmer_tel")\n'+
-    '  Mobile field right side (type=cover, pos="unternehmer_mobile")\n'+
-    '  Sachbearbeiter dotted line (type=cover, pos="sachbearbeiter")\n'+
-    '  Offertsumme Brutto Fr. Eingabe (type=cover, pos="brutto")\n'+
-    '  Offertsumme Rabatt % (type=cover, pos="rabatt_pct")\n'+
-    '  Offertsumme Rabatt Fr. Eingabe (type=cover, pos="rabatt_fr")\n'+
-    '  Offertsumme MWST Fr. Eingabe (type=cover, pos="mwst")\n'+
-    '  Offertsumme Total Fr. Eingabe (type=cover, pos="total_fr")\n'+
-    '  Ort, Datum dotted line (type=cover, pos="ort_datum")\n'+
-    '  Unternehmer signature dotted line (type=cover, pos="unternehmer_sign")\n\n'+
-    'LV PAGES: Every "SKI A [qty] [unit] A ......." line needs ep+gp fields.\n'+
-    '"Total X" lines need one total field (use type=total).\n'+
-    '"per" rows (qty=0 or no fixed qty) need ep only.\n\n'+
-    'IMPORTANT: Return ONLY valid JSON starting with {:\n'+
-    '{"fields":[\n'+
-    '  {"page":0,"y_pct":42,"ep_x_pct":14,"ep_w_pct":40,"type":"cover","pos":"unternehmer_name","qty":0,"unit":""},\n'+
-    '  {"page":0,"y_pct":78,"ep_x_pct":38,"ep_w_pct":22,"type":"cover","pos":"brutto","qty":0,"unit":"Fr"},\n'+
-    '  {"page":1,"y_pct":65,"ep_x_pct":62,"ep_w_pct":16,"type":"ep","pos":".001","qty":10,"unit":"h"},\n'+
-    '  {"page":1,"y_pct":65,"ep_x_pct":79,"ep_w_pct":18,"type":"gp","pos":".001","qty":10,"unit":"h"},\n'+
-    '  {"page":1,"y_pct":72,"ep_x_pct":79,"ep_w_pct":18,"type":"total","pos":"Total 100","qty":0,"unit":""}\n'+
-    ']}';
-
-  try{
-    var resp=await fetch('https://api.anthropic.com/v1/messages',{
-      method:'POST',
-      headers:{'Content-Type':'application/json','x-api-key':APIKEY,
-        'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
-      body:JSON.stringify({
-        model:'claude-sonnet-4-20250514',
-        max_tokens:8000,
-        messages:[{role:'user',content:[
-          {type:'document',source:{type:'base64',media_type:'application/pdf',data:pdfBase64}},
-          {type:'text',text:prompt}
-        ]}]
-      })
-    });
-    trackCost(0.05);
-    var data=await resp.json();
-    var txt=(data.content&&data.content[0]&&data.content[0].text)||'{}';
-    var j0=txt.indexOf('{'), j1=txt.lastIndexOf('}')+1;
-    if(j0<0){console.error('[Analysis] No JSON found. Response:',txt.slice(0,300));return null;}
-    var result=JSON.parse(txt.slice(j0,j1));
-    var fields=result.fields||[];
-    console.log('[Analysis] '+fields.length+' fields across all pages');
-    // Log per page
-    var byP={};
-    fields.forEach(function(f){byP[f.page]=(byP[f.page]||0)+1;});
-    console.log('[Analysis] Per page:',JSON.stringify(byP));
-    return result;
-  }catch(e){
-    console.error('[Analysis]',e);
-    showToast('Analyse-Fehler: '+e.message,'err');
-    return null;
-  }
-}
-
 async function runClaudeParser(){
-  if(!pjsDoc||!sourcePdfUrl){showToast('Kein PDF geladen','err');return;}
-  var pages=Array.from(selectedPages).sort(function(a,b){return a-b;});
-  if(!pages.length){showToast('Keine Seiten ausgewählt','err');return;}
-  var APIKEY=localStorage.getItem('morfApiKey')||'';
-  if(!APIKEY){showToast('API-Key fehlt — ⚙ Einstellungen','err');return;}
-
-  var btn=document.getElementById('runBtn');
-  if(btn){btn.textContent='Analysiert…';btn.disabled=true;}
-  parsedPos={};
-  document.getElementById('fillPages').innerHTML='';
-  window._uebertragEls={};
-
+  if(!CLAUDE_API_KEY){ openSettings(); showToast('API-Key fehlt','err'); return; }
+  var pages=Array.from(selectedPages).sort(function(a,b){ return a-b; });
+  if(!pages.length){ showToast('Keine Seiten ausgewählt','err'); return; }
+  var btn=document.getElementById('claudeBtn');
+  if(btn){ btn.disabled=true; btn.textContent='\u29d7 Wird analysiert\u2026'; }
   try{
-    // Step 1: Load PDF bytes → base64
-    showProgress('PDF wird geladen…','',5);
-    var pdfResp=await fetch(sourcePdfUrl);
-    var pdfBuf=await pdfResp.arrayBuffer();
-    var bytes=new Uint8Array(pdfBuf);
-    var b64='';
-    for(var bi=0;bi<bytes.length;bi+=8192){
-      b64+=String.fromCharCode.apply(null,bytes.subarray(bi,Math.min(bi+8192,bytes.length)));
-    }
-    b64=btoa(b64);
-    console.log('[Parser] PDF base64:',b64.length,'chars');
-
-    // Step 2: Send full PDF to Claude → get all fields
-    showProgress('Claude analysiert PDF…','1 API-Call für alle Seiten',10);
-    var analysis=await analyzePdfWithClaude(b64);
-    if(!analysis||!analysis.fields||!analysis.fields.length){
-      showToast('Keine Felder erkannt','err');
-      return;
-    }
-
-    // Group fields by page
-    var byPage={};
-    analysis.fields.forEach(function(f){
-      var p=f.page||0;
-      if(!byPage[p]) byPage[p]=[];
-      byPage[p].push(f);
-    });
-
-    // Step 3: Render each page + place fields
-    showView('vFill');
+    parsedPos={}; pageCanvases={};
+    window._uebertragEls={};
+    openFill();
     for(var i=0;i<pages.length;i++){
       var pi=pages[i];
-      showProgress('Seite '+(pi+1)+' rendern…','',20+Math.round((i/pages.length)*70));
-
+      var pct=Math.round((i/pages.length)*80);
+      showProgress('Seite '+(pi+1)+' von '+pages.length+' wird analysiert','Claude API + PDF.js',pct);
       var page=await pjsDoc.getPage(pi+1);
+      var vp1=page.getViewport({scale:1});
+      var pageW=vp1.width, pageH=vp1.height;
+      var tc=await page.getTextContent();
+      var allItems=[];
+      tc.items.forEach(function(it){
+        if(!it.str.trim()) return;
+        allItems.push({str:it.str.trim(),x:it.transform[4],y:it.transform[5],w:it.width||0,h:Math.abs(it.transform[3])||10});
+      });
+      var lineMap={};
+      allItems.forEach(function(it){
+        var b=Math.round(it.y/3)*3;
+        if(!lineMap[b]) lineMap[b]={y:it.y,items:[]};
+        lineMap[b].items.push(it);
+      });
+      var lines=Object.values(lineMap).sort(function(a,b){ return b.y-a.y; });
+
+      // Render page canvas (needed for display AND for OCR if required)
       var vp=page.getViewport({scale:RENDER_SCALE});
       var canvas=document.createElement('canvas');
       canvas.width=vp.width; canvas.height=vp.height;
       await page.render({canvasContext:canvas.getContext('2d'),viewport:vp}).promise;
       pageCanvases[pi]=canvas;
-
       var wrap=document.createElement('div'); wrap.className='page-wrap';
       wrap.style.width=vp.width+'px'; wrap.style.height=vp.height+'px';
       var overlay=document.createElement('div'); overlay.className='page-overlay';
@@ -1163,136 +899,268 @@ async function runClaudeParser(){
       wrap.appendChild(canvas); wrap.appendChild(overlay);
       document.getElementById('fillPages').appendChild(wrap);
 
-      // Place fields
-      var cW=canvas.width, cH=canvas.height;
-      var rowH=Math.round(13*RENDER_SCALE);
-      var pageFields=byPage[pi]||[];
+      // If no text found: image-based PDF → run OCR on the rendered canvas
+      if(allItems.length===0){
+        showProgress('Bild-PDF erkannt','OCR läuft — bitte warten…',10);
+        try{
+          var ocrWorker=await Tesseract.createWorker('deu',1);
+          var ocrResult=await ocrWorker.recognize(canvas.toDataURL('image/jpeg',0.92));
+          await ocrWorker.terminate();
+          ocrResult.data.words.forEach(function(w){
+            if(!w.text.trim()||w.confidence<30) return;
+            var item={
+              str: w.text.trim(),
+              x:   w.bbox.x0/RENDER_SCALE,
+              y:   pageH - w.bbox.y1/RENDER_SCALE,
+              w:   (w.bbox.x1-w.bbox.x0)/RENDER_SCALE,
+              h:   (w.bbox.y1-w.bbox.y0)/RENDER_SCALE
+            };
+            allItems.push(item);
+            var b=Math.round(item.y/3)*3;
+            if(!lineMap[b]) lineMap[b]={y:item.y,items:[]};
+            lineMap[b].items.push(item);
+          });
+          lines=Object.values(lineMap).sort(function(a,b){ return b.y-a.y; });
+          console.log('[OCR] '+ocrResult.data.words.length+' words → '+lines.length+' lines');
+        }catch(ocrErr){
+          console.error('[OCR] Failed:',ocrErr);
+        }
+      }
 
-      pageFields.forEach(function(f,fi){
-        if(f.ep_x_pct===undefined||f.ep_w_pct===undefined) return;
-        var cy=Math.round(cH*f.y_pct/100);
-        var isKT=f.type==='total';
-        var isCover=f.type==='cover';
-        var isGp=f.type==='gp';
-        var isEp=f.type==='ep'||isCover||isKT;
+      // Detect price rows: dots, SFr., or BauPlus "A....A" pattern right of 55%
+      var dotThresholdX=pageW*0.55;
+      var uebertragRow=null;
+      var pdfRows=[];
+      lines.forEach(function(line){
+        var dots=line.items.filter(function(it){ return /\.{4,}/.test(it.str)&&it.x>=dotThresholdX; });
 
-        var box={
-          x:Math.round(cW*f.ep_x_pct/100),
-          y:cy-rowH+1,
-          w:Math.round(cW*f.ep_w_pct/100),
-          h:rowH
-        };
-
-        var key=f.pos||('p'+pi+'_'+fi);
-        if(parsedPos[key]) key+='_'+pi+'_'+fi;
-
-        // For GP fields: update existing parsedPos entry
-        if(isGp){
-          var epKey=f.pos||key;
-          if(parsedPos[epKey]){
-            parsedPos[epKey].gpBox=box;
-            mkInput(overlay,box,epKey,true,false);
+        // BauPlus: lines ending with "A" + dots (e.g. "A  20  h  A........ ........")
+        // The last standalone "A" right of 55% is the EP/GP separator
+        if(!dots.length){
+          var allRight=line.items.filter(function(it){ return it.x>=dotThresholdX; });
+          // Find dot groups — BauPlus sometimes has "A" then spaces then dots as separate items
+          var dotGroups=allRight.filter(function(it){ return /\.{3,}/.test(it.str); });
+          if(dotGroups.length){
+            // Find last "A" item left of the dots — that's where EP field starts
+            var firstDot=dotGroups[0];
+            var aItems=line.items.filter(function(it){
+              return it.str.trim()==='A'&&it.x>=dotThresholdX&&it.x<firstDot.x;
+            });
+            if(aItems.length){
+              // EP starts right after the last A
+              var lastA=aItems[aItems.length-1];
+              var epX=lastA.x+lastA.w+1;
+              var epW=dotGroups[0].x-epX;
+              // Use the dots themselves for width info
+              dotGroups.forEach(function(dg,dgi){
+                dots.push({x:dgi===0?epX:dg.x, y:dg.y,
+                  w:dgi===0?Math.max(epW,pageW*0.15):dg.w||pageW*0.15,
+                  str:dg.str, isBauPlus:true});
+              });
+            } else {
+              // No A found but has dots — still add them
+              dotGroups.forEach(function(dg){ dots.push(dg); });
+            }
           }
-          return;
         }
 
-        parsedPos[key]={pos:f.pos||key,qty:f.qty||0,unit:f.unit||'',
-          ep:0,status:isKT?'kapitelTotal':isCover?'cover':'price',
-          isKapitelTotal:isKT,isCover:isCover,
-          pageIdx:pi,canvasW:cW,canvasH:cH,epBox:box,gpBox:null};
-        mkInput(overlay,box,key,false,isKT);
+        if(!dots.length){
+          var priceLabel=line.items.filter(function(it){
+            return /SFr\.?|Fr\.|CHF/i.test(it.str)&&it.x>=dotThresholdX;
+          });
+          if(priceLabel.length){
+            priceLabel.forEach(function(lbl){
+              // Intelligently split available white space right of SFr. into EP + GP
+              var sfrRight=lbl.x+(lbl.w||18);
+              var rightMargin=pageW-12; // 12 PDF-pts from right edge
+              var avail=rightMargin-sfrRight-8; // total space minus gaps
+              var halfW=Math.max(avail/2-3, 28); // min 28 PDF-pts per field
+              var epX=sfrRight+4;
+              var epW=halfW;
+              var gpX=epX+halfW+6;
+              var gpW=Math.max(rightMargin-gpX, 28);
+              dots.push({x:epX, y:lbl.y, w:epW, str:lbl.str, isSFr:true});
+              dots.push({x:gpX, y:lbl.y, w:gpW, str:lbl.str+'_gp', isSFr:true});
+            });
+          }
+        }
+        if(!dots.length) return;
+        dots.sort(function(a,b){ return a.x-b.x; });
+        var nonDots=line.items.filter(function(it){
+          return !/\.{4,}/.test(it.str)&&!/SFr\.?|Fr\.|CHF/i.test(it.str);
+        });
+        var txt=nonDots.map(function(it){ return it.str; }).join(' ').trim();
+        if(/\u00fcbertrag|zwischentotal/i.test(txt)){
+          uebertragRow={y:line.y,ep:dots[0],gp:dots.length>1?dots[dots.length-1]:null};
+          return;
+        }
+        if(/\btotal\b/i.test(txt)) return;
+        pdfRows.push({y:line.y,text:txt,ep:dots[0],gp:dots.length>1?dots[dots.length-1]:null});
       });
+      console.log('[PDF.js] Page '+pi+': '+pdfRows.length+' price-rows'+(uebertragRow?' + \u00dcbertrag':''));
 
-      // Übertrag field
-      if(pi>0){
-        var uEl=document.createElement('input'); uEl.type='text'; uEl.readOnly=true;
-        uEl.className='fill-field'; uEl.id='uebertrag-'+pi;
-        uEl.style.right='2px'; uEl.style.bottom='6px';
-        uEl.style.width='160px'; uEl.style.height='18px';
-        uEl.style.fontSize='9px'; uEl.style.fontFamily='var(--mono)';
-        uEl.style.background='rgba(230,230,245,0.9)'; uEl.style.border='1px solid #aac';
-        uEl.style.textAlign='right'; uEl.style.padding='0 4px'; uEl.style.fontWeight='600';
-        uEl.tabIndex=-1; uEl.title='Übertrag'; overlay.appendChild(uEl);
+      var clRows=await askClaude(canvas,pdfRows);
+      trackCost(0.008);
+      console.log('[Claude] Page '+pi+':',JSON.stringify(clRows));
+
+      var S=RENDER_SCALE;
+      var rowH=Math.round(13*S);
+
+      if(pdfRows.length===0){
+        // No dots: match by qty+unit from PDF.js lines
+        // Claude gives qty+unit per row; we find the line in PDF.js that contains
+        // both the qty number AND the unit text, then place field right of last item
+        var usedLineYs=[];
+
+        clRows.forEach(function(cl){
+          var qty=cl.qty||0;
+          var unit=(cl.unit||'').toLowerCase().replace(/stk\.?/,'st');
+          var lineId=(cl.line_id||'').trim();
+          var matchLine=null;
+          var bestScore=0;
+
+          lines.forEach(function(line){
+            if(usedLineYs.some(function(y){ return Math.abs(y-line.y)<4; })) return;
+            var lt=line.items.map(function(it){ return it.str; }).join(' ');
+            var ltL=lt.toLowerCase();
+
+            var score=0;
+            // Match: qty number present on line
+            if(qty>0 && lt.indexOf(String(qty))>=0) score+=2;
+            if(qty===0 && /per/i.test(lt)) score+=2;
+            // Match: unit present on line
+            if(unit && ltL.indexOf(unit)>=0) score+=1;
+            // Match: line_id text (partial)
+            if(lineId && lt.indexOf(lineId)>=0) score+=3;
+            // Must have some match
+            if(score>=2 && score>bestScore){ bestScore=score; matchLine=line; }
+          });
+
+          if(!matchLine) return; // no match found
+          usedLineYs.push(matchLine.y);
+
+          // Field: right of the rightmost item on this line that is past 40% page width
+          var rightItems=matchLine.items.filter(function(it){ return it.x>=pageW*0.4; });
+          if(!rightItems.length) rightItems=matchLine.items;
+          var rightmost=rightItems.reduce(function(best,it){
+            return (it.x+(it.w||0))>(best.x+(best.w||0))?it:best;
+          });
+          var fieldX=rightmost.x+(rightmost.w||0)+5;
+          var fieldW=pageW-fieldX-5;
+          if(fieldW<25){ fieldX=pageW*0.65; fieldW=pageW*0.30; }
+
+          var canvasY=Math.round((pageH-matchLine.y)*S)-rowH+2;
+          var epBox={
+            x: Math.round(fieldX*S),
+            y: canvasY,
+            w: Math.round(Math.min(fieldW, pageW-fieldX-2)*S),
+            h: rowH
+          };
+          var key=cl.pos||('p'+pi+'_'+Math.round(matchLine.y));
+          if(parsedPos[key]) key+='_'+Math.round(matchLine.y);
+          parsedPos[key]={pos:cl.pos||key, qty:cl.qty||0, unit:cl.unit||'',
+            ep:0, status:'price', pageIdx:pi, canvasW:canvas.width, canvasH:canvas.height,
+            epBox:epBox, gpBox:null};
+          placeField(key, overlay, parsedPos[key]);
+          console.log('[Match]', cl.pos, 'qty='+qty, 'unit='+unit,
+            'y='+matchLine.y.toFixed(1), 'fieldX='+fieldX.toFixed(1));
+        })
+      } else {
+        for(var idx=0;idx<pdfRows.length;idx++){
+          var row=pdfRows[idx];
+          var cl=clRows[idx]||{pos:'p'+pi+'_'+idx,qty:0,unit:''};
+          // Trust Claude's qty; only use regex fallback if Claude returned 0
+          if((cl.qty===0||cl.qty===undefined)&&!/\bper\b/i.test(row.text)){
+            var unitPat='(m\u00b2|m2|m(?!\\w)|St\\.?|gl\\.?|kg|LE|Stk\\.?|h(?!\\w)|pauschal)';
+            var qtyMatch=row.text.match(new RegExp('(\\d+\\.?\\d*)\\s+'+unitPat+'\\s','i'));
+            if(qtyMatch){
+              var qtyParsed=parseFloat(qtyMatch[1]);
+              var unitParsed=qtyMatch[2].replace(/m2/i,'m\u00b2').replace(/Stk\.?/i,'St');
+              if(!isNaN(qtyParsed)&&qtyParsed>0){ cl.qty=qtyParsed; cl.unit=unitParsed; }
+            }
+          }
+          if(/\bper\b/i.test(row.text)) cl.qty=0;
+          var canvasY=Math.round((pageH-row.y)*S)-rowH+2;
+          var epBox={x:Math.round(row.ep.x*S),y:canvasY,w:Math.round(row.ep.w*S),h:rowH};
+          var gpBox=(row.gp&&cl.qty>0)?{x:Math.round(row.gp.x*S),y:canvasY,
+            w:Math.min(Math.round(row.gp.w*S),canvas.width-Math.round(row.gp.x*S)-2),h:rowH}:null;
+          var key=cl.pos||('p'+pi+'_'+idx);
+          if(parsedPos[key]) key+='_p'+pi;
+          parsedPos[key]={pos:cl.pos||key,qty:cl.qty||0,unit:cl.unit||'',
+            ep:0,status:'price',pageIdx:pi,canvasW:canvas.width,canvasH:canvas.height,epBox:epBox,gpBox:gpBox};
+          placeField(key,overlay,parsedPos[key]);
+        }
+      }
+
+      // Übertrag: auto-sum field
+      if(uebertragRow){
+        var ur=uebertragRow;
+        var uCanvasY=Math.round((pageH-ur.y)*S)-rowH+2;
+        var uDot=ur.gp||ur.ep;
+        var uGpBox={x:Math.round(uDot.x*S),y:uCanvasY,
+          w:Math.min(Math.round(uDot.w*S),canvas.width-Math.round(uDot.x*S)-2),h:rowH};
+        var uEl=makeField('uebertrag_p'+pi,'gp',uGpBox);
+        uEl.readOnly=true; uEl.tabIndex=-1; uEl.style.fontWeight='600';
+        uEl.title='\u00dcbertrag (Seitensumme)';
+        overlay.appendChild(uEl);
         window._uebertragEls[pi]=uEl;
       }
     }
-
-    showToast('✓ '+Object.keys(parsedPos).length+' Positionen erkannt','ok');
-
-  }catch(e){
-    console.error('[Parser]',e);
-    showToast('Fehler: '+e.message,'err');
-  }finally{
-    hideProgress(); // ALWAYS hide spinner
-    if(btn){btn.textContent='✦ KI-Analyse';btn.disabled=false;}
+    hideProgress();
+    showToast('\u2713 '+Object.keys(parsedPos).length+' Positionen erkannt','ok');
+  } catch(e){
+    hideProgress(); console.error(e); showToast('Fehler: '+e.message,'err');
+  } finally{
+    if(btn){ btn.disabled=false; btn.textContent='\u2746 KI-Analyse'; }
   }
 }
 
-
-function mkInput(overlay,box,key,isGp,isKT){
-  var isCover=parsedPos[key]&&parsedPos[key].isCover;
-  var inp=document.createElement('input'); inp.type='text';
-  inp.id='field-'+key+(isGp?'-gp':'');
-  inp.className='fill-field';
-  inp.style.left=Math.round(box.x)+'px';
-  inp.style.top=Math.round(box.y)+'px';
-  inp.style.width=Math.round(box.w)+'px';
-  inp.style.height=Math.round(box.h)+'px';
-  inp.style.fontSize=Math.round(8.5*RENDER_SCALE/1.5)+'px';
-  inp.style.fontFamily='var(--mono)';
-  inp.style.background=isKT?'rgba(200,220,255,0.9)':isGp?'rgba(200,240,200,0.9)':isCover?'rgba(255,255,200,0.9)':'rgba(235,248,235,0.9)';
-  inp.style.border='none';
-  inp.style.borderBottom='1.5px solid '+(isKT?'#2255bb':isGp?'#227722':isCover?'#aa7700':'#225588');
-  inp.style.outline='none'; inp.style.textAlign='right';
-  inp.style.padding='0 3px'; inp.style.boxSizing='border-box'; inp.style.borderRadius='2px';
-  inp.style.pointerEvents='all'; inp.style.cursor=isGp||isKT?'default':'text';
-  inp.readOnly=isGp||isKT; inp.tabIndex=isGp||isKT?-1:0;
-  inp.dataset.key=key; inp.dataset.isGp=isGp?'1':'0';
-  if(!isGp&&!isKT){
-    inp.addEventListener('keydown',function(ev){
-      if(ev.key==='Tab'||ev.key==='Enter'){ev.preventDefault();
-        var all=Array.from(document.querySelectorAll('#fillPages input.fill-field:not([readonly])'));
-        var nx=all[all.indexOf(inp)+1]; if(nx) nx.focus();}
-      var k=ev.key.toLowerCase();
-      if(k==='k'){ev.preventDefault();inp.value='k. A.';processInput(inp,key);}
-      if(k==='b'){ev.preventDefault();inp.value='bauseits';processInput(inp,key);}
-      if(k==='i'){ev.preventDefault();inp.value='inkl.';processInput(inp,key);}
-    });
-    inp.addEventListener('input',function(){processInput(inp,key);});
-    inp.addEventListener('blur',function(){
-      var pp=parsedPos[key];
-      if(pp&&pp.ep>0&&pp.status==='price') inp.value=fmtN(pp.ep);
-      else if(inp.value==='0') inp.value='0.00';
-    });
+async function askClaude(canvas,pdfRows){
+  var b64=canvas.toDataURL('image/jpeg',0.88).split(',')[1];
+  var prompt;
+  if(pdfRows.length>0){
+    var rowList=pdfRows.map(function(r,i){
+      return (i+1)+'. "'+r.text.slice(0,60)+'"'+(r.ep&&r.ep.isSFr?' [SFr.-format]':'');
+    }).join('\n');
+    prompt='This is a Swiss NPK construction price list.\n\n'
+      +'The following '+pdfRows.length+' price row(s) were detected top-to-bottom:\n'
+      +rowList+'\n\n'
+      +'For each row, in the same order, return:\n'
+      +'- pos: position number as printed (e.g. "181>083", "30,00", "R .101")\n'
+      +'- qty: quantity on that row as decimal; 0 if it says "per" or has no quantity\n'
+      +'- unit: unit on that row (St, m, m2, LE, gl, kg, h, pauschal)\n\n'
+      +'Return ONLY a JSON array with exactly '+pdfRows.length+' entries:\n'
+      +'[{"pos":"181>083","qty":4,"unit":"St"},{"pos":"181>084","qty":0,"unit":"m"},...]';
+  } else {
+    prompt='This is a Swiss NPK construction price list. No dotted lines were found automatically.\n\n'
+      +'Find every row where a unit price must be entered.\n'
+      +'For each price row return:\n'
+      +'- pos: position number as printed (e.g. "31,00", "32,00a", "30,00")\n'
+      +'- qty: quantity as decimal; 0 if it says "per" or has no fixed quantity\n'
+      +'- unit: unit (St, Stk, m, m2, LE, gl, kg, h, pauschal)\n'
+      +'- line_id: the EXACT quantity+unit text as it appears on the price row\n'
+      +'  Examples: "1 gl", "168 m\u00b9", "33 Stk.", "per", "2 Stk."\n'
+      +'  Must be text from the SAME LINE as the price field.\n\n'
+      +'Skip: section headers, Total lines, \u00dcbertrag, description-only rows.\n'
+      +'Return ONLY a JSON array:\n'
+      +'[{"pos":"30,00","qty":1,"unit":"gl","line_id":"1 gl"},{"pos":"31,00","qty":168,"unit":"m","line_id":"168 m"},...]';
   }
-  overlay.appendChild(inp);
-}
-
-function processInput(inp,key){
-  var pp=parsedPos[key]; if(!pp) return;
-  var v=inp.value.trim();
-  if(v==='k'||v==='k. a.'){pp.ep=0;pp.status='ka';inp.value='k. A.';}
-  else if(v==='b'||v==='bauseits'){pp.ep=0;pp.status='bauseits';inp.value='bauseits';}
-  else if(v==='i'||v==='inkl.'){pp.ep=0;pp.status='inkl';inp.value='inkl.';}
-  else{
-    var n=parseFloat(v.replace(/[' ]/g,'').replace(',','.'));
-    if(!isNaN(n)&&n>=0){
-      pp.ep=n; pp.status='price'; inp.value=fmtN(n);
-      if(pp.qty>0){
-        var gEl=document.getElementById('field-'+key+'-gp');
-        if(gEl) gEl.value=fmtN(n*pp.qty);
-      }
-    }
-  }
-  if(pp.pageIdx!==undefined) updateUebertrag(pp.pageIdx);
-}
-
-
-function fmtN(n){
-  if(!n&&n!==0) return '';
-  var parts=Number(n).toFixed(2).split('.');
-  parts[0]=parts[0].replace(/\B(?=(\d{3})+(?!\d))/g,"'");
-  return parts[0]+'.'+parts[1];
+  var resp=await fetch('https://api.anthropic.com/v1/messages',{
+    method:'POST',
+    headers:{'content-type':'application/json','x-api-key':CLAUDE_API_KEY,
+      'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+    body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1500,temperature:0,
+      messages:[{role:'user',content:[
+        {type:'image',source:{type:'base64',media_type:'image/jpeg',data:b64}},
+        {type:'text',text:prompt}]}]})
+  });
+  if(!resp.ok){var e=await resp.json().catch(function(){return{};});
+    throw new Error('Claude API: '+((e.error&&e.error.message)||resp.status));}
+  var data=await resp.json();
+  var text='';(data.content||[]).forEach(function(b){if(b.type==='text')text+=b.text;});
+  var m=text.match(/\[[\s\S]*\]/);
+  if(!m){console.warn('[Claude] No JSON:',text);return[];}
+  try{return JSON.parse(m[0]);}catch(e){console.error('[Claude] JSON error:',text);return[];}
 }
 
 function updateUebertrag(pageIdx){
@@ -1314,6 +1182,81 @@ function updateUebertrag(pageIdx){
   }
 }
 
+function placeField(key,overlay,p){
+  var ep=makeField(key,'ep',p.epBox);
+  ep.addEventListener('input',function(){
+    var pp=parsedPos[key]; if(!pp) return;
+    var val=this.value.trim().toLowerCase();
+    var gpEl=overlay.querySelector('.fill-field.gp[data-key="'+key+'"]');
+    if(val==='k'||val==='ka'||val==='k.a.'||val==='k. a.'){
+      pp.status='ka';pp.ep=0;this.className='fill-field ka';this.value='k. A.';
+      if(gpEl)gpEl.value='';
+    } else if(val==='b'||val==='bauseits'){
+      pp.status='bauseits';pp.ep=0;this.className='fill-field bauseits';this.value='bauseits';
+      if(gpEl)gpEl.value='';
+    } else if(val==='i'||val==='inkl.'||val==='inkl'){
+      pp.status='inkl';pp.ep=0;this.className='fill-field bauseits';this.value='inkl.';
+      if(gpEl)gpEl.value='';
+    } else {
+      var n=parseFloat(val.replace(/[' ]/g,'').replace(',','.'));
+      if(!isNaN(n)&&n>0){
+        pp.ep=n;pp.status='price';this.className='fill-field filled';
+        if(gpEl&&pp.qty>0){gpEl.value=fmtN(n*pp.qty);gpEl.className='fill-field gp filled';}
+      } else if(val===''){
+        pp.ep=0;pp.status='price';this.className='fill-field';
+        if(gpEl){gpEl.value='';gpEl.className='fill-field gp';}
+      }
+    }
+    updateUebertrag(pp.pageIdx);
+  });
+  ep.addEventListener('focus',function(){
+    var pp=parsedPos[key];
+    if(pp&&pp.ep>0&&pp.status==='price'){this.value=pp.ep.toString();this.select();}
+  });
+  ep.addEventListener('blur',function(){
+    var pp=parsedPos[key];
+    if(pp&&pp.status==='price'){
+      if(pp.ep>0) this.value=fmtN(pp.ep);
+      else if(this.value==='0') this.value='0.00';
+    }
+  });
+  ep.addEventListener('keydown',function(e){
+    if(e.key==='Tab'||e.key==='Enter'){
+      e.preventDefault();
+      var all=Array.from(document.querySelectorAll('.fill-field:not(.gp)'));
+      var idx2=all.indexOf(this);
+      if(idx2>=0&&idx2<all.length-1){all[idx2+1].focus();all[idx2+1].select();}
+    }
+  });
+  overlay.appendChild(ep);
+  if(p.gpBox){var gp=makeField(key,'gp',p.gpBox);gp.readOnly=true;gp.tabIndex=-1;overlay.appendChild(gp);}
+  var del=document.createElement('button');
+  del.className='del-btn';del.textContent='\u00d7';del.title='Ausblenden';
+  var box=p.gpBox||p.epBox;
+  del.style.left=(box.x+box.w+3)+'px';del.style.top=p.epBox.y+'px';
+  del.addEventListener('click',function(){
+    overlay.querySelectorAll('[data-key="'+key+'"]').forEach(function(el){el.remove();});
+    del.remove();delete parsedPos[key];
+  });
+  overlay.appendChild(del);
+}
+
+function makeField(key,type,box){
+  var el=document.createElement('input');
+  el.type='text';el.className='fill-field'+(type==='gp'?' gp':'');
+  el.dataset.key=key;el.dataset.type=type;
+  el.style.left=box.x+'px';el.style.top=box.y+'px';
+  el.style.width=box.w+'px';el.style.height=box.h+'px';
+  el.style.fontSize='10px';
+  return el;
+}
+
+function fmtN(n){
+  if(!n&&n!==0) return '';
+  var parts=Number(n).toFixed(2).split('.');
+  parts[0]=parts[0].replace(/\B(?=(\d{3})+(?!\d))/g,"'");
+  return parts[0]+'.'+parts[1];
+}
 
 async function savePdf(){
   if(!sourcePdfUrl||typeof PDFLib==='undefined'){showToast('PDF nicht bereit','err');return;}
@@ -1438,7 +1381,7 @@ async function savePdf(){
       var bulletChar='\u2022';
       var bulletW=7;
       var textX=leftX+bulletW;
-      var maxTextW=rightX-textX; // full width to right margin
+      var maxTextW=pW-textX-56.5;
 
       function wrapDB(text,mW){
         var words=text.split(' '),lns=[],cur='';

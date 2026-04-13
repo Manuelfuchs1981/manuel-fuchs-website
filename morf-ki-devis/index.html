@@ -410,13 +410,13 @@ var SB_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI
 var EDGE_URL=SB_URL+'/functions/v1/analyse-offerte';
 var MORF={name:'Karl Morf AG',addr1:'Aspstrasse 6',addr2:'8154 Oberglatt',tel:'+41 44 852 30 00'};
 var PROJ_FILIALE={
-  '121':{code:'FZH',name:'Filiale Zürich',     ort:'Oberglatt',    addr1:'Aspstrasse 6',       addr2:'8154 Oberglatt',    tel:'+41 44 852 30 00'},
-  '131':{code:'FAG',name:'Filiale Aargau',     ort:'Oberentfelden',addr1:'Hauptstrasse 30',    addr2:'5036 Oberentfelden',tel:'+41 62 737 07 07'},
-  '141':{code:'FGL',name:'Filiale Glarus',     ort:'Niederurnen',  addr1:'Brunnernstrasse 9',  addr2:'8867 Niederurnen',  tel:'+41 55 614 16 04'},
-  '151':{code:'FGR',name:'Filiale Graubünden', ort:'Trimmis',      addr1:'Industriestrasse 1', addr2:'7203 Trimmis',      tel:'+41 81 322 43 43'},
-  '171':{code:'FSG',name:'Filiale St. Gallen', ort:'Waldkirch',    addr1:'Industriestrasse 1', addr2:'9303 Waldkirch',    tel:'+41 71 434 24 24'},
-  '181':{code:'FZS',name:'Filiale Zentralschweiz',ort:'Cham',      addr1:'Bösch 37',           addr2:'6331 Cham',         tel:'+41 41 741 41 41'},
-  '191':{code:'DAV',name:'DAV-Zürich',         ort:'Zürich',       addr1:'Aspstrasse 6',       addr2:'8154 Oberglatt',    tel:'+41 44 852 30 00'},
+  '121':{code:'FZH',name:'Filiale Zürich',          ort:'Oberglatt',    addr1:'Aspstrasse 6',       addr2:'8154 Oberglatt',    tel:'+41 44 852 30 00'},
+  '131':{code:'FAG',name:'Filiale Aargau',          ort:'Oberentfelden',addr1:'Bergstrasse 65',     addr2:'5036 Oberentfelden',tel:'+41 62 723 42 70'},
+  '141':{code:'FGL',name:'Filiale Glarus',          ort:'Niederurnen',  addr1:'Brunnernstrasse 9',  addr2:'8867 Niederurnen',  tel:'+41 55 614 16 64'},
+  '151':{code:'FGR',name:'Filiale Graubünden',      ort:'Trimmis',      addr1:'Cholplatzweg 9',     addr2:'7203 Trimmis',      tel:'+41 81 353 79 33'},
+  '171':{code:'FSG',name:'Filiale St. Gallen',      ort:'Waldkirch',    addr1:'Hauptwilerstrasse 8',addr2:'9205 Waldkirch',    tel:'+41 71 278 78 20'},
+  '181':{code:'FZS',name:'Filiale Zentralschweiz',  ort:'Cham',         addr1:'Riedstrasse 9',      addr2:'6330 Cham',         tel:'+41 41 743 23 63'},
+  '191':{code:'DAV',name:'DAV-Zürich',              ort:'Zürich',       addr1:'Aspstrasse 6',       addr2:'8154 Oberglatt',    tel:'+41 44 852 30 00'},
 };
 function getFilialeByProjNr(nr){
   var prefix=String(nr||'').slice(0,3);

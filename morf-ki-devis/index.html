@@ -520,6 +520,9 @@ function renderOfferte(offerte){
   document.getElementById('analyseScreen').style.display='block';
   document.getElementById('exportBtn').style.display='';
   document.getElementById('saveBtn').style.display='';
+  document.getElementById('tabTable').style.display='';
+  document.getElementById('tabLV').style.display='';
+  document.getElementById('tabTable').classList.add('active');
 
   // Deckblatt
   var d=offerte.deckblatt||{};

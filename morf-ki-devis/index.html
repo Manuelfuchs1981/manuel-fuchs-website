@@ -448,7 +448,14 @@ async function handleFile(file){
   updateSpinner('Claude analysiert Offerte (1 API-Call)...');
 
   try{
-    var {data:{session}}=await supabase.auth.getSession();
+    // Refresh session to ensure valid token
+    var {data:{session}}=await supabase.auth.refreshSession();
+    if(!session){
+      // Fallback to stored session
+      var {data:sd}=await supabase.auth.getSession();
+      session=sd.session;
+    }
+    if(!session){showToast('Bitte neu anmelden','err');hideSpinner();return;}
     var resp=await fetch(EDGE_URL,{
       method:'POST',
       headers:{

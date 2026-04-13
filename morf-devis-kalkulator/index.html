@@ -334,7 +334,7 @@ body{font-family:var(--font);font-size:13px;background:var(--bg);color:var(--tex
   <div class="drop-screen">
     <div class="drop-card">
       <div class="eyebrow">LV-Offerte</div>
-      <div style="font-family:var(--mono);font-size:9px;color:var(--dim);margin-bottom:8px">Deploy: 13.04.2026 07:31</div>
+      <div style="font-family:var(--mono);font-size:9px;color:var(--dim);margin-bottom:8px">Deploy: 13.04.2026 07:34</div>
       <h1>Leistungsverzeichnis<br>ausfüllen</h1>
       <div class="drop-zone" id="dropZone"
         ondragover="event.preventDefault();this.classList.add('over')"
@@ -1113,6 +1113,7 @@ async function runClaudeParser(){
   window._uebertragEls={};
 
   try{
+    showView('vFill');
     // ── STEP 1: Fetch PDF bytes and convert to base64 ──────────
     showProgress('PDF wird geladen…','',5);
     var pdfResp=await fetch(sourcePdfUrl);
@@ -1241,6 +1242,36 @@ async function runClaudeParser(){
     if(btn){btn.textContent='✦ KI-Analyse';btn.disabled=false;}
   }
 }
+
+function fmtN(n){
+  if(!n&&n!==0) return '';
+  var parts=Number(n).toFixed(2).split('.');
+  parts[0]=parts[0].replace(/\B(?=(\d{3})+(?!\d))/g,"'");
+  return parts[0]+'.'+parts[1];
+}
+
+function updateUebertrag(pageIdx){
+  if(!window._uebertragEls||!window._uebertragEls[pageIdx]) return;
+  var sum=0;
+  Object.entries(parsedPos).forEach(function(kv){
+    var key=kv[0],p=kv[1];
+    if(key.indexOf('uebertrag_')===0) return;
+    if(p.pageIdx<=pageIdx&&p.ep>0&&p.qty>0&&p.status==='price') sum+=p.ep*p.qty;
+  });
+  var el=window._uebertragEls[pageIdx];
+  el.value=sum>0?fmtN(sum):'';
+  el.className='fill-field gp'+(sum>0?' filled':'');
+  if(window._uebertragEls){
+    Object.keys(window._uebertragEls).forEach(function(pi){
+      pi=parseInt(pi);
+      if(pi>pageIdx) updateUebertrag(pi);
+    });
+  }
+}
+
+
+
+
 
 function placeCoverField(overlay,f,cW,cH,rowH){
   // Cover page fields: placed based on label

@@ -1298,27 +1298,27 @@ async function testExportPdf(){
     }
 
     // ── COVER PAGE (Seite 0) ─────────────────────────────
-    // These coordinates are for BauPlus A4 LV format
-    // Unternehmer block (left column, ~y=630-580)
-    txt(p0,name,       195,630,9,fontB);
-    txt(p0,addr1,      195,616,9);
-    txt(p0,addr2,      195,602,9);
-    txt(p0,sachb?'Sachbearbeiter: '+sachb:'',195,574,9);
+    // Calibrated coordinates for BauPlus A4 LV (595x842pt, y=0 bottom)
+    // Unternehmer block (left column)
+    txt(p0,name,       195,498,9,fontB);
+    txt(p0,addr1,      195,484,9);
+    txt(p0,addr2,      195,470,9);
+    txt(p0,sachb?'Sachbearbeiter: '+sachb:'',195,445,9);
 
-    // Tel / Mobile (right column)
-    txt(p0,tel,        445,630,9);
-    if(mobile) txt(p0,mobile,445,616,9);
+    // Tel / Mobile (right column, same Y as Unternehmer lines)
+    txt(p0,tel,        445,498,9);
+    if(mobile) txt(p0,mobile,445,484,9);
 
-    // Offertsumme (y ~490-440)
-    txt(p0,fmtCH(brutto),      370,486,9);
+    // Offertsumme Eingabe column (x~370)
+    txt(p0,fmtCH(brutto),      370,278,9);
     if(rabattPct>0){
-      txt(p0,fmtCH(rabatt),    370,472,9);
+      txt(p0,fmtCH(rabatt),    370,264,9);
     }
-    txt(p0,fmtCH(mwst),        370,458,9);
-    txt(p0,fmtCH(total),       370,432,9,fontB);
+    txt(p0,fmtCH(mwst),        370,250,9);
+    txt(p0,fmtCH(total),       370,225,9,fontB);
 
     // Ort/Datum
-    txt(p0,ortdat,     130,108,9);
+    txt(p0,ortdat,     130,95,9);
 
     // ── LV PAGES ─────────────────────────────────────────
     // Write EP and GP for each position on correct pages

@@ -324,7 +324,7 @@ body{font-family:var(--font);font-size:13px;background:var(--bg);color:var(--tex
   <div class="drop-screen">
     <div class="drop-card">
       <div class="eyebrow">LV-Offerte</div>
-      <div style="font-family:var(--mono);font-size:9px;color:var(--dim);margin-bottom:8px">Deploy: 13.04.2026 07:50</div>
+      <div style="font-family:var(--mono);font-size:9px;color:var(--dim);margin-bottom:8px">Deploy: 13.04.2026 07:52</div>
       <h1>Leistungsverzeichnis<br>ausfüllen</h1>
       <div class="drop-zone" id="dropZone"
         ondragover="event.preventDefault();this.classList.add('over')"
@@ -341,13 +341,7 @@ body{font-family:var(--font);font-size:13px;background:var(--bg);color:var(--tex
         </div>
       </div>
       <div class="parse-status" id="parseStatus"></div>
-      <button class="start-btn" id="startBtn" disabled onclick="openFill()">
-        <span>Preise eintragen</span>
-        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" style="width:14px;height:14px">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-            d="M13 7l5 5m0 0l-5 5m5-5H6"/>
-        </svg>
-      </button>
+
     </div>
   </div>
 </div>
@@ -559,6 +553,8 @@ function onFileInput(file){
     sourcePdfUrl=URL.createObjectURL(pdfBlob);  // Blob URL — reliable, re-fetchable
     pjsDoc=await pdfjsLib.getDocument(sourcePdfUrl).promise;
     showPageSelector();
+    // Auto-start KI-Analyse
+    setTimeout(function(){ runClaudeParser(); }, 300);
   };
   r.readAsArrayBuffer(file);
 }

@@ -1,0 +1,702 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Morf KI-Devis</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap');
+
+:root {
+  --bg: #0f0f0f;
+  --surface: #1a1a1a;
+  --surface2: #242424;
+  --border: #2e2e2e;
+  --accent: #c8a84b;
+  --accent2: #8b6914;
+  --text: #e8e8e8;
+  --text2: #888;
+  --text3: #555;
+  --green: #4caf82;
+  --red: #e05555;
+  --blue: #4a9eff;
+  --mono: 'IBM Plex Mono', monospace;
+  --sans: 'IBM Plex Sans', sans-serif;
+}
+
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);min-height:100vh;font-size:14px}
+
+/* ── TOPBAR ── */
+.topbar{
+  display:flex;align-items:center;gap:16px;
+  padding:12px 24px;
+  background:var(--surface);
+  border-bottom:1px solid var(--border);
+  position:sticky;top:0;z-index:100;
+}
+.logo{font-family:var(--mono);font-size:13px;font-weight:600;letter-spacing:0.08em;color:var(--accent)}
+.logo span{color:var(--text2);font-weight:400}
+.topbar-actions{margin-left:auto;display:flex;gap:8px;align-items:center}
+.btn{
+  padding:7px 16px;border-radius:4px;border:1px solid var(--border);
+  background:var(--surface2);color:var(--text);cursor:pointer;
+  font-family:var(--sans);font-size:13px;font-weight:500;
+  transition:all 0.15s;
+}
+.btn:hover{border-color:var(--accent);color:var(--accent)}
+.btn-primary{background:var(--accent);color:#0f0f0f;border-color:var(--accent)}
+.btn-primary:hover{background:#d4b45a;color:#0f0f0f}
+.btn:disabled{opacity:0.4;cursor:not-allowed}
+#userBadge{
+  font-family:var(--mono);font-size:11px;color:var(--text2);
+  padding:4px 10px;background:var(--surface2);border-radius:20px;border:1px solid var(--border);
+}
+
+/* ── MAIN LAYOUT ── */
+.container{max-width:1400px;margin:0 auto;padding:24px}
+
+/* ── UPLOAD ZONE ── */
+#uploadZone{
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  min-height:60vh;gap:20px;
+}
+.drop-area{
+  width:100%;max-width:520px;
+  border:2px dashed var(--border);border-radius:8px;
+  padding:60px 40px;text-align:center;
+  transition:all 0.2s;cursor:pointer;
+  background:var(--surface);
+}
+.drop-area:hover,.drop-area.drag{border-color:var(--accent);background:#1f1c14}
+.drop-icon{font-size:48px;margin-bottom:16px;opacity:0.5}
+.drop-title{font-size:18px;font-weight:500;margin-bottom:8px}
+.drop-sub{color:var(--text2);font-size:13px}
+input[type=file]{display:none}
+.history-link{color:var(--text3);font-size:12px;cursor:pointer;text-decoration:underline}
+.history-link:hover{color:var(--accent)}
+
+/* ── ANALYSE SCREEN ── */
+#analyseScreen{display:none}
+.status-bar{
+  display:flex;align-items:center;gap:12px;
+  padding:12px 16px;background:var(--surface);border:1px solid var(--border);
+  border-radius:6px;margin-bottom:20px;
+}
+.status-dot{width:8px;height:8px;border-radius:50%;background:var(--accent);animation:pulse 1.5s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.3}}
+.status-dot.done{background:var(--green);animation:none}
+.status-dot.err{background:var(--red);animation:none}
+
+/* ── DECKBLATT PANEL ── */
+.panel{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:6px;margin-bottom:16px;overflow:hidden;
+}
+.panel-header{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:12px 16px;border-bottom:1px solid var(--border);cursor:pointer;
+}
+.panel-title{font-weight:600;font-size:13px;letter-spacing:0.04em;color:var(--accent)}
+.panel-body{padding:16px}
+
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.form-group{display:flex;flex-direction:column;gap:4px}
+.form-group.full{grid-column:1/-1}
+.form-label{font-size:11px;color:var(--text2);letter-spacing:0.05em;text-transform:uppercase}
+.form-input{
+  background:var(--surface2);border:1px solid var(--border);border-radius:4px;
+  padding:8px 10px;color:var(--text);font-family:var(--sans);font-size:13px;
+  transition:border-color 0.15s;
+}
+.form-input:focus{outline:none;border-color:var(--accent)}
+.form-input.auto-filled{border-color:var(--green);background:#0d1f16}
+
+/* ── POSITIONEN TABLE ── */
+.pos-table{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:12px}
+.pos-table th{
+  padding:8px 10px;background:var(--surface2);color:var(--text2);
+  font-size:10px;letter-spacing:0.08em;text-transform:uppercase;
+  border-bottom:1px solid var(--border);text-align:left;font-weight:500;
+}
+.pos-table th.r{text-align:right}
+.pos-table td{padding:6px 10px;border-bottom:1px solid #1e1e1e;vertical-align:middle}
+.pos-table tr:hover td{background:#1d1d1d}
+.pos-table tr.is-total td{
+  font-weight:600;color:var(--accent);background:var(--surface2);
+  border-top:1px solid var(--border);font-size:11px;
+}
+.pos-table tr.is-section td{
+  color:var(--text2);font-size:10px;letter-spacing:0.1em;text-transform:uppercase;
+  padding:14px 10px 4px;border-bottom:none;font-family:var(--sans);
+}
+.pos-nr{color:var(--text2);white-space:nowrap}
+.pos-desc{color:var(--text);font-family:var(--sans);font-size:12px;max-width:400px}
+.pos-qty{text-align:right;color:var(--text2)}
+.pos-unit{color:var(--text3);padding-left:4px}
+
+/* EP input field */
+.ep-cell{position:relative}
+.ep-input{
+  width:90px;background:var(--surface2);border:1px solid var(--border);
+  border-radius:3px;padding:4px 8px;color:var(--text);font-family:var(--mono);
+  font-size:12px;text-align:right;transition:all 0.15s;
+}
+.ep-input:focus{outline:none;border-color:var(--accent);background:#1f1c14}
+.ep-input.has-suggestion{border-color:var(--accent2);background:#1c1808}
+.ep-input.user-edited{border-color:var(--blue)}
+.ep-badge{
+  position:absolute;top:-6px;right:-6px;
+  background:var(--accent2);color:#fff;
+  font-size:8px;padding:1px 4px;border-radius:8px;
+  font-family:var(--sans);pointer-events:none;
+}
+.gp-cell{text-align:right;color:var(--text);font-weight:500}
+.total-gp{text-align:right;color:var(--accent);font-weight:600}
+
+/* ── SUMMEN BAR ── */
+.summen-bar{
+  display:grid;grid-template-columns:repeat(4,1fr);gap:12px;
+  padding:16px;background:var(--surface);border:1px solid var(--border);
+  border-radius:6px;margin-bottom:16px;
+}
+.summe-item{}
+.summe-label{font-size:10px;color:var(--text2);letter-spacing:0.08em;text-transform:uppercase;margin-bottom:4px}
+.summe-val{font-family:var(--mono);font-size:18px;font-weight:600;color:var(--text)}
+.summe-val.total{color:var(--accent);font-size:22px}
+
+/* ── SPINNER ── */
+.spinner-overlay{
+  position:fixed;inset:0;background:rgba(0,0,0,0.7);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  z-index:1000;gap:20px;backdrop-filter:blur(4px);
+}
+.spinner{
+  width:40px;height:40px;border:3px solid var(--border);
+  border-top-color:var(--accent);border-radius:50%;
+  animation:spin 0.8s linear infinite;
+}
+@keyframes spin{to{transform:rotate(360deg)}}
+.spinner-msg{color:var(--text2);font-size:14px;font-family:var(--mono)}
+
+/* ── LOGIN ── */
+#loginScreen{
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  min-height:100vh;gap:20px;
+}
+.login-box{
+  width:340px;background:var(--surface);border:1px solid var(--border);
+  border-radius:8px;padding:32px;
+}
+.login-title{font-family:var(--mono);font-size:20px;font-weight:600;color:var(--accent);margin-bottom:24px;text-align:center}
+.login-box .form-group{margin-bottom:12px}
+
+/* ── TOAST ── */
+.toast{
+  position:fixed;bottom:24px;right:24px;
+  padding:12px 20px;border-radius:6px;font-size:13px;
+  font-family:var(--sans);z-index:9999;
+  animation:toastIn 0.3s ease;
+  max-width:360px;
+}
+@keyframes toastIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+.toast.ok{background:#1a3d2b;border:1px solid var(--green);color:var(--green)}
+.toast.err{background:#3d1a1a;border:1px solid var(--red);color:var(--red)}
+.toast.info{background:var(--surface2);border:1px solid var(--border);color:var(--text)}
+
+/* ── SETTINGS DRAWER ── */
+.drawer{
+  position:fixed;top:0;right:0;width:300px;height:100vh;
+  background:var(--surface);border-left:1px solid var(--border);
+  padding:24px;z-index:200;transform:translateX(100%);transition:transform 0.2s;
+}
+.drawer.open{transform:translateX(0)}
+.drawer-title{font-weight:600;margin-bottom:20px;color:var(--accent)}
+
+/* ── HISTORY TABLE ── */
+.hist-table{width:100%;border-collapse:collapse;font-size:12px}
+.hist-table th,.hist-table td{padding:8px 10px;text-align:left;border-bottom:1px solid var(--border)}
+.hist-table th{color:var(--text2);font-size:10px;text-transform:uppercase;letter-spacing:0.08em}
+.hist-table tr:hover td{background:var(--surface2);cursor:pointer}
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="loginScreen">
+  <div class="login-box">
+    <div class="login-title">MORF KI-DEVIS</div>
+    <div class="form-group">
+      <label class="form-label">E-Mail</label>
+      <input class="form-input" type="email" id="loginEmail" placeholder="name@morf-ag.ch">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Passwort</label>
+      <input class="form-input" type="password" id="loginPw" placeholder="••••••••">
+    </div>
+    <button class="btn btn-primary" style="width:100%;margin-top:16px" onclick="doLogin()">Anmelden</button>
+    <div id="loginErr" style="color:var(--red);font-size:12px;margin-top:10px;text-align:center"></div>
+  </div>
+</div>
+
+<!-- MAIN APP (hidden until login) -->
+<div id="mainApp" style="display:none">
+
+<!-- TOPBAR -->
+<div class="topbar">
+  <div class="logo">MORF <span>KI-DEVIS</span></div>
+  <div id="userBadge">–</div>
+  <div class="topbar-actions">
+    <button class="btn" onclick="showHistory()">📋 Offerten-Archiv</button>
+    <button class="btn" id="exportBtn" style="display:none" onclick="doExport()">⬇ Export PDF</button>
+    <button class="btn" id="saveBtn" style="display:none" onclick="doSave()">💾 Speichern</button>
+    <button class="btn" onclick="toggleDrawer()">⚙</button>
+  </div>
+</div>
+
+<div class="container">
+
+<!-- UPLOAD -->
+<div id="uploadZone">
+  <div class="drop-area" id="dropArea" onclick="fileInput.click()">
+    <div class="drop-icon">📄</div>
+    <div class="drop-title">Offerte PDF hochladen</div>
+    <div class="drop-sub">Klicken oder PDF hier hineinziehen<br>Claude analysiert alles automatisch</div>
+  </div>
+  <div class="history-link" onclick="showHistory()">Bestehende Offerten anzeigen →</div>
+</div>
+
+<!-- ANALYSE SCREEN -->
+<div id="analyseScreen">
+
+  <!-- Status -->
+  <div class="status-bar" id="statusBar">
+    <div class="status-dot" id="statusDot"></div>
+    <span id="statusMsg">Claude analysiert...</span>
+    <span style="margin-left:auto;color:var(--text3);font-size:11px;font-family:var(--mono)" id="statusInfo"></span>
+  </div>
+
+  <!-- Summen -->
+  <div class="summen-bar" id="summenBar">
+    <div class="summe-item"><div class="summe-label">Brutto</div><div class="summe-val" id="sBrutto">–</div></div>
+    <div class="summe-item"><div class="summe-label">Rabatt</div><div class="summe-val" id="sRabatt">–</div></div>
+    <div class="summe-item"><div class="summe-label">MWST 8.1%</div><div class="summe-val" id="sMwst">–</div></div>
+    <div class="summe-item"><div class="summe-label">Total inkl. MWST</div><div class="summe-val total" id="sTotal">–</div></div>
+  </div>
+
+  <!-- Deckblatt -->
+  <div class="panel">
+    <div class="panel-header" onclick="togglePanel(this)">
+      <span class="panel-title">▶ DECKBLATT / OFFERTANGABEN</span>
+      <span style="color:var(--text3);font-size:11px">einklappen</span>
+    </div>
+    <div class="panel-body">
+      <div class="form-grid">
+        <div class="form-group full">
+          <label class="form-label">Bauvorhaben</label>
+          <input class="form-input" id="fBauvorhaben" placeholder="–">
+        </div>
+        <div class="form-group"><label class="form-label">Projekt-Nr.</label><input class="form-input" id="fProjektNr" placeholder="–"></div>
+        <div class="form-group"><label class="form-label">Datum</label><input class="form-input" id="fDatum" placeholder="–"></div>
+        <div class="form-group"><label class="form-label">Unternehmer Name</label><input class="form-input" id="fName" placeholder="Karl Morf AG"></div>
+        <div class="form-group"><label class="form-label">Adresse</label><input class="form-input" id="fAddr1" placeholder="Aspstrasse 6"></div>
+        <div class="form-group"><label class="form-label">PLZ/Ort</label><input class="form-input" id="fAddr2" placeholder="8154 Oberglatt"></div>
+        <div class="form-group"><label class="form-label">Tel.</label><input class="form-input" id="fTel" placeholder="+41 44 852 30 00"></div>
+        <div class="form-group"><label class="form-label">Mobile</label><input class="form-input" id="fMobile" placeholder=""></div>
+        <div class="form-group"><label class="form-label">Sachbearbeiter</label><input class="form-input" id="fSachb" placeholder=""></div>
+        <div class="form-group"><label class="form-label">Ort, Datum</label><input class="form-input" id="fOrtDatum" placeholder="Oberglatt, TT.MM.JJJJ"></div>
+        <div class="form-group"><label class="form-label">Rabatt %</label><input class="form-input" id="fRabattPct" type="number" placeholder="0" oninput="recalcSummen()"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Positionen -->
+  <div class="panel">
+    <div class="panel-header" onclick="togglePanel(this)">
+      <span class="panel-title">▶ POSITIONEN</span>
+      <span id="posCount" style="color:var(--text3);font-size:11px"></span>
+    </div>
+    <div class="panel-body" style="padding:0">
+      <table class="pos-table">
+        <thead>
+          <tr>
+            <th>Pos-Nr.</th>
+            <th>Beschreibung</th>
+            <th class="r">Menge</th>
+            <th>Einheit</th>
+            <th class="r">EP (CHF)</th>
+            <th class="r">GP (CHF)</th>
+          </tr>
+        </thead>
+        <tbody id="posTableBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+</div><!-- analyseScreen -->
+
+<!-- HISTORY PANEL -->
+<div id="historyPanel" style="display:none">
+  <h2 style="font-family:var(--mono);color:var(--accent);margin-bottom:16px;font-size:16px">OFFERTEN-ARCHIV</h2>
+  <div id="historyContent"></div>
+</div>
+
+</div><!-- container -->
+</div><!-- mainApp -->
+
+<!-- SETTINGS DRAWER -->
+<div class="drawer" id="drawer">
+  <div class="drawer-title">Einstellungen</div>
+  <div class="form-group" style="margin-bottom:16px">
+    <label class="form-label">Claude API-Key</label>
+    <input class="form-input" type="password" id="apiKeyInput" placeholder="sk-ant-...">
+    <button class="btn" style="margin-top:8px;width:100%" onclick="saveApiKey()">Speichern</button>
+  </div>
+  <button class="btn" style="width:100%;margin-top:8px" onclick="doLogout()">Abmelden</button>
+</div>
+
+<!-- SPINNER -->
+<div class="spinner-overlay" id="spinner" style="display:none">
+  <div class="spinner"></div>
+  <div class="spinner-msg" id="spinnerMsg">Claude analysiert PDF...</div>
+</div>
+
+<input type="file" id="fileInput" accept=".pdf">
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+// ── CONFIG ────────────────────────────────────────────────
+var SB_URL='https://mwwrfwalfqjnyapowdlu.supabase.co';
+var SB_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im13d3Jmd2FsZnFqbnlhcG93ZGx1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU5ODU0ODMsImV4cCI6MjA5MTU2MTQ4M30.9K_36ccGPa2dGzGIFyf-mEANfgHdA7E6YlYkBn5tl-Y';
+var EDGE_URL=SB_URL+'/functions/v1/analyse-offerte';
+var MORF={name:'Karl Morf AG',addr1:'Aspstrasse 6',addr2:'8154 Oberglatt',tel:'+41 44 852 30 00'};
+
+var supabase=window.supabase.createClient(SB_URL,SB_KEY);
+var currentOfferte=null;
+var currentPdfName='';
+var currentSession=null;
+
+// ── AUTH ─────────────────────────────────────────────────
+async function init(){
+  var {data:{session}}=await supabase.auth.getSession();
+  if(session){onLogin(session);}
+  else{document.getElementById('loginScreen').style.display='flex';}
+}
+
+async function doLogin(){
+  var email=document.getElementById('loginEmail').value.trim();
+  var pw=document.getElementById('loginPw').value;
+  var {data,error}=await supabase.auth.signInWithPassword({email,password:pw});
+  if(error){document.getElementById('loginErr').textContent=error.message;return;}
+  onLogin(data.session);
+}
+
+function onLogin(session){
+  currentSession=session;
+  document.getElementById('loginScreen').style.display='none';
+  document.getElementById('mainApp').style.display='block';
+  var parts=(session.user.email||'').split('@')[0].split(/[._-]/);
+  var initials=parts.slice(0,2).map(function(p){return p[0]&&p[0].toUpperCase()||'';}).join('');
+  document.getElementById('userBadge').textContent=initials+' · '+session.user.email;
+  document.getElementById('apiKeyInput').value=localStorage.getItem('morfApiKey')||'';
+  // Auto-fill Sachbearbeiter
+  var sachb=parts.map(function(p){return p.charAt(0).toUpperCase()+p.slice(1);}).join(' ');
+  document.getElementById('fSachb').value=sachb;
+}
+
+async function doLogout(){
+  await supabase.auth.signOut();
+  location.reload();
+}
+
+function saveApiKey(){
+  localStorage.setItem('morfApiKey',document.getElementById('apiKeyInput').value.trim());
+  toggleDrawer();
+  showToast('API-Key gespeichert','ok');
+}
+
+// ── FILE UPLOAD ───────────────────────────────────────────
+var dropArea=document.getElementById('dropArea');
+var fileInput=document.getElementById('fileInput');
+
+['dragover','dragleave','drop'].forEach(function(ev){
+  dropArea.addEventListener(ev,function(e){
+    e.preventDefault();
+    if(ev==='dragover') dropArea.classList.add('drag');
+    else dropArea.classList.remove('drag');
+    if(ev==='drop') handleFile(e.dataTransfer.files[0]);
+  });
+});
+fileInput.addEventListener('change',function(){if(this.files[0])handleFile(this.files[0]);});
+
+async function handleFile(file){
+  if(!file||!file.name.endsWith('.pdf')){showToast('Bitte ein PDF hochladen','err');return;}
+  var apiKey=localStorage.getItem('morfApiKey');
+  if(!apiKey){showToast('Bitte zuerst API-Key in ⚙ Einstellungen eingeben','err');toggleDrawer();return;}
+
+  currentPdfName=file.name;
+  showSpinner('PDF wird gelesen...');
+
+  // PDF to base64
+  var b64=await new Promise(function(res,rej){
+    var r=new FileReader();
+    r.onload=function(){res(r.result.split(',')[1]);};
+    r.onerror=rej;
+    r.readAsDataURL(file);
+  });
+
+  updateSpinner('Claude analysiert Offerte (1 API-Call)...');
+
+  try{
+    var {data:{session}}=await supabase.auth.getSession();
+    var resp=await fetch(EDGE_URL,{
+      method:'POST',
+      headers:{
+        'Content-Type':'application/json',
+        'Authorization':'Bearer '+session.access_token,
+        'x-anthropic-key':apiKey,
+      },
+      body:JSON.stringify({action:'analyse',pdf_base64:b64,pdf_name:file.name})
+    });
+    var result=await resp.json();
+    if(!result.ok) throw new Error(result.error||'Fehler');
+    hideSpinner();
+    renderOfferte(result.offerte);
+  }catch(e){
+    hideSpinner();
+    showToast('Fehler: '+e.message,'err');
+    console.error(e);
+  }
+}
+
+// ── RENDER OFFERTE ────────────────────────────────────────
+function renderOfferte(offerte){
+  currentOfferte=offerte;
+  document.getElementById('uploadZone').style.display='none';
+  document.getElementById('historyPanel').style.display='none';
+  document.getElementById('analyseScreen').style.display='block';
+  document.getElementById('exportBtn').style.display='';
+  document.getElementById('saveBtn').style.display='';
+
+  // Deckblatt
+  var d=offerte.deckblatt||{};
+  document.getElementById('fBauvorhaben').value=offerte.bauvorhaben||'';
+  document.getElementById('fProjektNr').value=offerte.projekt_nr||'';
+  document.getElementById('fDatum').value=offerte.datum||'';
+  document.getElementById('fName').value=d.unternehmer_name||MORF.name;
+  document.getElementById('fAddr1').value=d.unternehmer_addr1||MORF.addr1;
+  document.getElementById('fAddr2').value=d.unternehmer_addr2||MORF.addr2;
+  document.getElementById('fTel').value=d.tel||MORF.tel;
+  document.getElementById('fMobile').value=d.mobile||'';
+  document.getElementById('fRabattPct').value=d.rabatt_pct||0;
+
+  // Ort/Datum auto
+  var today=new Date();
+  var dd=String(today.getDate()).padStart(2,'0');
+  var mm=String(today.getMonth()+1).padStart(2,'0');
+  document.getElementById('fOrtDatum').value='Oberglatt, '+dd+'.'+mm+'.'+today.getFullYear();
+
+  // Status
+  var pos=(offerte.positionen||[]).filter(function(p){return !p.is_total;});
+  var mitVorschlag=pos.filter(function(p){return p.hat_vorschlag;}).length;
+  setStatus('done','Analyse abgeschlossen — '+pos.length+' Positionen erkannt',mitVorschlag>0?mitVorschlag+' EP-Vorschläge aus Archiv':'');
+  document.getElementById('posCount').textContent=pos.length+' Positionen';
+
+  // Positionen-Tabelle
+  renderTable(offerte.positionen||[]);
+  recalcSummen();
+}
+
+function renderTable(positionen){
+  var tbody=document.getElementById('posTableBody');
+  tbody.innerHTML='';
+  positionen.forEach(function(p,i){
+    var tr=document.createElement('tr');
+    if(p.is_total){
+      tr.className='is-total';
+      tr.innerHTML='<td class="pos-nr">'+esc(p.pos_nr)+'</td>'+
+        '<td class="pos-desc" colspan="3">'+esc(p.beschreibung)+'</td>'+
+        '<td></td>'+
+        '<td class="total-gp" id="total_'+i+'">–</td>';
+    } else {
+      var hasSugg=p.hat_vorschlag&&p.ep_vorschlag>0;
+      var epVal=p.ep>0?fmtN(p.ep):'';
+      tr.innerHTML='<td class="pos-nr">'+esc(p.pos_nr)+'</td>'+
+        '<td class="pos-desc">'+esc(p.beschreibung)+'</td>'+
+        '<td class="pos-qty">'+fmtQty(p.qty)+'</td>'+
+        '<td class="pos-unit">'+esc(p.unit||'')+'</td>'+
+        '<td class="ep-cell">'+
+          '<div style="position:relative;display:inline-block">'+
+          '<input class="ep-input'+(hasSugg?' has-suggestion':'').trim()+'" '+
+            'data-idx="'+i+'" data-orig="'+p.ep+'" '+
+            'value="'+epVal+'" placeholder="0.00" '+
+            'oninput="onEpInput(this,'+i+')" onblur="onEpBlur(this,'+i+')" '+
+            'onfocus="onEpFocus(this)">'+
+          (hasSugg?'<span class="ep-badge" title="Vorschlag aus Archiv: '+fmtN(p.ep_vorschlag)+'">KI</span>':'')+'</div>'+
+        '</td>'+
+        '<td class="gp-cell" id="gp_'+i+'">'+
+          (p.ep>0&&p.qty>0?fmtN(p.ep*p.qty):'–')+
+        '</td>';
+    }
+    tbody.appendChild(tr);
+  });
+}
+
+function onEpInput(inp,idx){
+  inp.classList.add('user-edited');
+  inp.classList.remove('has-suggestion');
+  var n=parseFloat(inp.value.replace(/[' ]/g,'').replace(',','.'));
+  if(!isNaN(n)&&n>0){
+    var p=currentOfferte.positionen[idx];
+    p.ep=n;
+    var gp=p.qty>0?n*p.qty:0;
+    p.gp=gp;
+    var gpEl=document.getElementById('gp_'+idx);
+    if(gpEl) gpEl.textContent=gp>0?fmtN(gp):'–';
+    recalcTotals();
+    recalcSummen();
+  }
+}
+function onEpBlur(inp,idx){
+  var n=parseFloat(inp.value.replace(/[' ]/g,'').replace(',','.'));
+  if(!isNaN(n)&&n>0) inp.value=fmtN(n);
+  else if(inp.value==='') {var p=currentOfferte.positionen[idx];p.ep=0;}
+}
+function onEpFocus(inp){
+  var n=parseFloat(inp.value.replace(/[' ]/g,'').replace(',','.'));
+  if(!isNaN(n)&&n>0) inp.value=n;
+}
+
+function recalcTotals(){
+  // For each is_total row, sum GP of preceding non-total rows in same section
+  var pos=currentOfferte.positionen||[];
+  var running=0;
+  pos.forEach(function(p,i){
+    if(p.is_total){
+      var el=document.getElementById('total_'+i);
+      if(el) el.textContent=running>0?fmtN(running):'–';
+      running=0;
+    } else {
+      running+=(p.ep>0&&p.qty>0)?p.ep*p.qty:0;
+    }
+  });
+}
+
+function recalcSummen(){
+  var pos=currentOfferte&&currentOfferte.positionen||[];
+  var brutto=0;
+  pos.forEach(function(p){
+    if(!p.is_total&&p.ep>0&&p.qty>0) brutto+=p.ep*p.qty;
+  });
+  var rabattPct=parseFloat(document.getElementById('fRabattPct').value)||0;
+  var rabatt=brutto*rabattPct/100;
+  var netto=brutto-rabatt;
+  var mwst=netto*0.081;
+  var total=netto+mwst;
+  document.getElementById('sBrutto').textContent=brutto>0?'Fr. '+fmtN(brutto):'–';
+  document.getElementById('sRabatt').textContent=rabatt>0?'Fr. '+fmtN(rabatt):'–';
+  document.getElementById('sMwst').textContent=mwst>0?'Fr. '+fmtN(mwst):'–';
+  document.getElementById('sTotal').textContent=total>0?'Fr. '+fmtN(total):'–';
+  if(currentOfferte){
+    currentOfferte.brutto=brutto;
+    currentOfferte.rabatt_pct=rabattPct;
+    currentOfferte.mwst=mwst;
+    currentOfferte.total_inkl=total;
+  }
+  recalcTotals();
+}
+
+// ── SAVE ─────────────────────────────────────────────────
+async function doSave(){
+  if(!currentOfferte){showToast('Keine Offerte geladen','err');return;}
+  var apiKey=localStorage.getItem('morfApiKey');
+  var {data:{session}}=await supabase.auth.getSession();
+  showSpinner('Speichern...');
+  try{
+    var resp=await fetch(EDGE_URL,{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+session.access_token,'x-anthropic-key':apiKey},
+      body:JSON.stringify({
+        action:'speichern',
+        pdf_name:currentPdfName,
+        offerte:{
+          ...currentOfferte,
+          bauvorhaben:document.getElementById('fBauvorhaben').value,
+          projekt_nr:document.getElementById('fProjektNr').value,
+          datum:document.getElementById('fDatum').value,
+          brutto:currentOfferte.brutto||0,
+        }
+      })
+    });
+    var r=await resp.json();
+    hideSpinner();
+    if(r.ok) showToast('✓ '+r.gespeichert+' Positionen im Archiv gespeichert','ok');
+    else showToast('Fehler: '+(r.error||'?'),'err');
+  }catch(e){hideSpinner();showToast('Fehler: '+e.message,'err');}
+}
+
+// ── HISTORY ───────────────────────────────────────────────
+async function showHistory(){
+  document.getElementById('uploadZone').style.display='none';
+  document.getElementById('analyseScreen').style.display='none';
+  document.getElementById('historyPanel').style.display='block';
+
+  var {data,error}=await supabase.from('offerten')
+    .select('*').order('created_at',{ascending:false}).limit(50);
+
+  var el=document.getElementById('historyContent');
+  if(!data||!data.length){el.innerHTML='<p style="color:var(--text2)">Noch keine Offerten gespeichert.</p>';return;}
+
+  el.innerHTML='<table class="hist-table"><thead><tr>'+
+    '<th>Bauvorhaben</th><th>Projekt-Nr.</th><th>Datum</th><th>Brutto</th><th>Datei</th>'+
+    '</tr></thead><tbody>'+
+    data.map(function(o){return '<tr>'+
+      '<td>'+esc(o.bauvorhaben||o.titel||'–')+'</td>'+
+      '<td style="font-family:var(--mono)">'+esc(o.projekt_nr||'–')+'</td>'+
+      '<td>'+esc(o.datum||'–')+'</td>'+
+      '<td style="font-family:var(--mono)">'+((o.brutto||0)>0?'Fr. '+fmtN(o.brutto):'–')+'</td>'+
+      '<td style="color:var(--text3);font-size:11px">'+esc(o.pdf_name||'–')+'</td>'+
+      '</tr>';}).join('')+
+    '</tbody></table>';
+}
+
+// ── EXPORT (placeholder) ─────────────────────────────────
+function doExport(){showToast('PDF-Export kommt in der nächsten Version','info');}
+
+// ── UI HELPERS ────────────────────────────────────────────
+function togglePanel(header){
+  var body=header.nextElementSibling;
+  var open=body.style.display!=='none';
+  body.style.display=open?'none':'';
+  header.querySelector('span:last-child').textContent=open?'ausklappen':'einklappen';
+}
+function toggleDrawer(){document.getElementById('drawer').classList.toggle('open');}
+function setStatus(type,msg,info){
+  document.getElementById('statusDot').className='status-dot '+type;
+  document.getElementById('statusMsg').textContent=msg;
+  document.getElementById('statusInfo').textContent=info||'';
+}
+function showSpinner(msg){document.getElementById('spinnerMsg').textContent=msg;document.getElementById('spinner').style.display='flex';}
+function updateSpinner(msg){document.getElementById('spinnerMsg').textContent=msg;}
+function hideSpinner(){document.getElementById('spinner').style.display='none';}
+function showToast(msg,type){
+  var t=document.createElement('div');
+  t.className='toast '+(type||'info');t.textContent=msg;
+  document.body.appendChild(t);
+  setTimeout(function(){t.remove();},4000);
+}
+function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function fmtN(n){
+  if(!n&&n!==0) return '';
+  return Number(n).toLocaleString('de-CH',{minimumFractionDigits:2,maximumFractionDigits:2});
+}
+function fmtQty(n){
+  if(!n) return '–';
+  return Number(n).toLocaleString('de-CH',{maximumFractionDigits:3});
+}
+
+// ── START ─────────────────────────────────────────────────
+init();
+</script>
+</body>
+</html>

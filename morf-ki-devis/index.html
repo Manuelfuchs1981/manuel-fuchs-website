@@ -319,8 +319,13 @@ input[type=file]{display:none}
           <label class="form-label">Bauvorhaben</label>
           <input class="form-input" id="fBauvorhaben" placeholder="–">
         </div>
-        <div class="form-group"><label class="form-label">Projekt-Nr.</label><input class="form-input" id="fProjektNr" placeholder="–"></div>
+        <div class="form-group"><label class="form-label">Projekt-Nr. (Bauleitung)</label><input class="form-input" id="fProjektNr" placeholder="–"></div>
         <div class="form-group"><label class="form-label">Datum</label><input class="form-input" id="fDatum" placeholder="–"></div>
+        <div class="form-group">
+          <label class="form-label">Morf Projekt-Nr. <span style="color:var(--accent);font-size:10px">→ Filiale wird erkannt</span></label>
+          <input class="form-input" id="fMorfProjektNr" placeholder="z.B. 14121345" oninput="onMorfProjNrInput(this.value)">
+        </div>
+        <div class="form-group"><label class="form-label">Filiale</label><input class="form-input" id="fFiliale" placeholder="–" readonly style="color:var(--accent);font-weight:600"></div>
         <div class="form-group"><label class="form-label">Unternehmer Name</label><input class="form-input" id="fName" placeholder="Karl Morf AG"></div>
         <div class="form-group"><label class="form-label">Adresse</label><input class="form-input" id="fAddr1" placeholder="Aspstrasse 6"></div>
         <div class="form-group"><label class="form-label">PLZ/Ort</label><input class="form-input" id="fAddr2" placeholder="8154 Oberglatt"></div>
@@ -404,6 +409,19 @@ var SB_URL='https://mwwrfwalfqjnyapowdlu.supabase.co';
 var SB_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im13d3Jmd2FsZnFqbnlhcG93ZGx1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU5ODU0ODMsImV4cCI6MjA5MTU2MTQ4M30.9K_36ccGPa2dGzGIFyf-mEANfgHdA7E6YlYkBn5tl-Y';
 var EDGE_URL=SB_URL+'/functions/v1/analyse-offerte';
 var MORF={name:'Karl Morf AG',addr1:'Aspstrasse 6',addr2:'8154 Oberglatt',tel:'+41 44 852 30 00'};
+var PROJ_FILIALE={
+  '121':{code:'FZH',name:'Filiale Zürich',     ort:'Oberglatt',    addr1:'Aspstrasse 6',       addr2:'8154 Oberglatt',    tel:'+41 44 852 30 00'},
+  '131':{code:'FAG',name:'Filiale Aargau',     ort:'Oberentfelden',addr1:'Hauptstrasse 30',    addr2:'5036 Oberentfelden',tel:'+41 62 737 07 07'},
+  '141':{code:'FGL',name:'Filiale Glarus',     ort:'Niederurnen',  addr1:'Brunnernstrasse 9',  addr2:'8867 Niederurnen',  tel:'+41 55 614 16 04'},
+  '151':{code:'FGR',name:'Filiale Graubünden', ort:'Trimmis',      addr1:'Industriestrasse 1', addr2:'7203 Trimmis',      tel:'+41 81 322 43 43'},
+  '171':{code:'FSG',name:'Filiale St. Gallen', ort:'Waldkirch',    addr1:'Industriestrasse 1', addr2:'9303 Waldkirch',    tel:'+41 71 434 24 24'},
+  '181':{code:'FZS',name:'Filiale Zentralschweiz',ort:'Cham',      addr1:'Bösch 37',           addr2:'6331 Cham',         tel:'+41 41 741 41 41'},
+  '191':{code:'DAV',name:'DAV-Zürich',         ort:'Zürich',       addr1:'Aspstrasse 6',       addr2:'8154 Oberglatt',    tel:'+41 44 852 30 00'},
+};
+function getFilialeByProjNr(nr){
+  var prefix=String(nr||'').slice(0,3);
+  return PROJ_FILIALE[prefix]||null;
+}
 
 var supabase=window.supabase.createClient(SB_URL,SB_KEY);
 var currentPdfB64='';
@@ -541,7 +559,9 @@ function renderOfferte(offerte){
   var today=new Date();
   var dd=String(today.getDate()).padStart(2,'0');
   var mm=String(today.getMonth()+1).padStart(2,'0');
-  document.getElementById('fOrtDatum').value='Oberglatt, '+dd+'.'+mm+'.'+today.getFullYear();
+  var morfNrVal=document.getElementById('fMorfProjektNr').value;
+  var filOrt=getFilialeByProjNr(morfNrVal);
+  document.getElementById('fOrtDatum').value=(filOrt?filOrt.ort:'Oberglatt')+', '+dd+'.'+mm+'.'+today.getFullYear();
 
   // Status
   var pos=(offerte.positionen||[]).filter(function(p){return !p.is_total;});
@@ -616,6 +636,26 @@ function onEpFocus(inp){
   setTimeout(function(){inp.select();},0);
 }
 
+function onMorfProjNrInput(val){
+  var fil=getFilialeByProjNr(val);
+  if(!fil){
+    document.getElementById('fFiliale').value='';
+    return;
+  }
+  document.getElementById('fFiliale').value=fil.name+' ('+fil.ort+')';
+  // Auto-fill Unternehmer with Filiale data
+  document.getElementById('fName').value='Karl Morf AG';
+  document.getElementById('fAddr1').value=fil.addr1;
+  document.getElementById('fAddr2').value=fil.addr2;
+  document.getElementById('fTel').value=fil.tel;
+  document.getElementById('fOrtDatum').value=fil.ort+', '+getTodayStr();
+  showToast('✓ '+fil.name+' erkannt — Adresse gesetzt','ok');
+}
+function getTodayStr(){
+  var t=new Date();
+  return String(t.getDate()).padStart(2,'0')+'.'+
+         String(t.getMonth()+1).padStart(2,'0')+'.'+t.getFullYear();
+}
 function onEpKeydown(e,inp){
   if(e.key==='Tab'){
     e.preventDefault();
@@ -1203,9 +1243,11 @@ async function exportOriginalPdf(){
     var url=URL.createObjectURL(blob);
     var a=document.createElement('a');
     a.href=url;
-    var fn=(document.getElementById('fBauvorhaben').value||currentPdfName||'Offerte')
-             .replace(/[^a-zA-Z0-9äöüÄÖÜ\s-]/g,'').trim();
-    a.download='Ausgefuellt_'+fn+'.pdf';
+    var bauvorh=(document.getElementById('fBauvorhaben').value||'Offerte')
+               .replace(/[^a-zA-Z0-9äöüÄÖÜ\s-]/g,'').replace(/\s+/g,'-').trim();
+    var morfNr=document.getElementById('fMorfProjektNr').value.trim();
+    var fn=morfNr?('Angebot-'+morfNr+'-'+bauvorh):('Ausgefuellt-'+bauvorh);
+    a.download=fn+'.pdf';
     a.click();
     URL.revokeObjectURL(url);
     hideSpinner();

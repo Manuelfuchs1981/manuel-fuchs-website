@@ -1255,83 +1255,61 @@ function updateTotals(){
 // ── PDF EXPORT ──────────────────────────────────────────────
 async function doExport(){
   if(!currentOfferte){showToast('Keine Offerte geladen','err');return;}
+  if(!currentPdfB64){showToast('Bitte zuerst PDF hochladen','err');return;}
+  var apiKey=localStorage.getItem('morfApiKey');
+  if(!apiKey){showToast('API-Key fehlt','err');toggleDrawer();return;}
 
-  // If LV fill view has been used → export original PDF with values written in
-  var hasLvFields=Object.keys(parsedPos).length>0;
-  if(hasLvFields&&currentPdfB64){
-    await exportOriginalPdf();
-  } else {
-    await exportSummaryPdf();
-  }
-}
+  showSpinner('Claude füllt PDF aus (Server-seitig)...');
 
-// ── EXPORT: write values into ORIGINAL PDF ──────────────────
-async function exportOriginalPdf(){
-  showSpinner('Original-PDF wird ausgefüllt...');
   try{
-    var {PDFDocument,rgb,StandardFonts}=PDFLib;
-    var raw=atob(currentPdfB64);
-    var arr=new Uint8Array(raw.length);
-    for(var i=0;i<raw.length;i++) arr[i]=raw.charCodeAt(i);
-    var doc=await PDFDocument.load(arr);
-    var font=await doc.embedFont(StandardFonts.Helvetica);
-    var fontB=await doc.embedFont(StandardFonts.HelveticaBold);
-    var blue=rgb(0,0,0.7);
-    var S=RENDER_SCALE;
+    var {data:{session}}=await supabase.auth.getSession();
+    if(!session){hideSpinner();showToast('Bitte anmelden','err');return;}
 
-    // For each field in parsedPos, write value into the correct page
-    Object.keys(parsedPos).forEach(function(key){
-      var pp=parsedPos[key];
-      if(!pp||pp.pageIdx===undefined) return;
-      var page=doc.getPages()[pp.pageIdx];
-      if(!page) return;
-      var pH=page.getHeight();
-      var sz=8;
+    // Collect all values from form
+    var deckblatt={
+      unternehmer_name: document.getElementById('fName').value,
+      unternehmer_addr1: document.getElementById('fAddr1').value,
+      unternehmer_addr2: document.getElementById('fAddr2').value,
+      tel: document.getElementById('fTel').value,
+      mobile: document.getElementById('fMobile').value,
+      sachbearbeiter: document.getElementById('fSachb').value,
+      ort_datum: document.getElementById('fOrtDatum').value,
+      rabatt_pct: document.getElementById('fRabattPct').value,
+    };
 
-      // Get value from input field or stored coverText
-      var epEl=document.getElementById('ef-'+key);
-      var val=epEl?epEl.value.trim():(pp.coverText||'');
-      if(!val||val==='–'||val==='') return;
-
-      // Convert canvas coords back to PDF coords
-      var pdfX=pp.epBox.x/S;
-      var pdfY=pH-(pp.epBox.y/S)-(pp.epBox.h/S)+2;
-
-      var iscover=pp.status==='cover';
-      page.drawText(val,{
-        x:pdfX+2, y:pdfY,
-        size:sz,
-        font:iscover?font:font,
-        color:blue
-      });
-
-      // GP value
-      if(pp.gpBox){
-        var gpEl=document.getElementById('gf-'+key);
-        var gpVal=gpEl?gpEl.value.trim():'';
-        if(gpVal&&gpVal!=='–'){
-          var gpPdfX=pp.gpBox.x/S;
-          page.drawText(gpVal,{x:gpPdfX+2,y:pdfY,size:sz,font:font,color:blue});
-        }
-      }
+    var resp=await fetch('https://mwwrfwalfqjnyapowdlu.supabase.co/functions/v1/fill-pdf',{
+      method:'POST',
+      headers:{
+        'Content-Type':'application/json',
+        'Authorization':'Bearer '+session.access_token,
+        'x-anthropic-key':apiKey,
+      },
+      body:JSON.stringify({
+        pdf_base64: currentPdfB64,
+        deckblatt: deckblatt,
+        positionen: currentOfferte.positionen||[]
+      })
     });
 
-    var bytes=await doc.save();
+    var result=await resp.json();
+    if(!result.ok) throw new Error(result.error||'Server-Fehler');
+
+    // Download filled PDF
+    var bytes=Uint8Array.from(atob(result.pdf_base64),function(c){return c.charCodeAt(0);});
     var blob=new Blob([bytes],{type:'application/pdf'});
     var url=URL.createObjectURL(blob);
     var a=document.createElement('a');
     a.href=url;
-    var bauvorh=(document.getElementById('fBauvorhaben').value||currentPdfName.replace(/\.pdf$/i,'')||'Offerte')
+    var bauvorh=(document.getElementById('fBauvorhaben').value||'Offerte')
                .replace(/[^a-zA-Z0-9äöüÄÖÜ\s-]/g,'').replace(/\s+/g,'-').trim();
     var morfNr=document.getElementById('fMorfProjektNr').value.trim();
-    // Upload: LV- → Download: Angebot-
-    var fn='Angebot-'+(morfNr||parsedProjNr||'')+(morfNr||parsedProjNr?'-':'')+bauvorh;
-    a.download=fn+'.pdf';
-    console.log('[Export] Dateiname:', fn+'.pdf');
+    a.download=(morfNr?'Angebot-'+morfNr+'-':'')+bauvorh+'.pdf';
     a.click();
     URL.revokeObjectURL(url);
+
     hideSpinner();
-    showToast('✓ Original-PDF ausgefüllt und heruntergeladen','ok');
+    showToast('✓ '+result.felder_count+' Felder eingetragen — PDF heruntergeladen','ok');
+
   }catch(e){
     hideSpinner();
     console.error(e);
@@ -1339,7 +1317,7 @@ async function exportOriginalPdf(){
   }
 }
 
-// ── EXPORT: summary PDF (fallback if LV not rendered) ───────
+
 async function exportSummaryPdf(){
   showSpinner('Zusammenfassung wird erstellt...');
   try{

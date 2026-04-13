@@ -334,7 +334,7 @@ body{font-family:var(--font);font-size:13px;background:var(--bg);color:var(--tex
   <div class="drop-screen">
     <div class="drop-card">
       <div class="eyebrow">LV-Offerte</div>
-      <div style="font-family:var(--mono);font-size:9px;color:var(--dim);margin-bottom:8px">Deploy: 13.04.2026 07:26</div>
+      <div style="font-family:var(--mono);font-size:9px;color:var(--dim);margin-bottom:8px">Deploy: 13.04.2026 07:31</div>
       <h1>Leistungsverzeichnis<br>ausfüllen</h1>
       <div class="drop-zone" id="dropZone"
         ondragover="event.preventDefault();this.classList.add('over')"
@@ -1101,7 +1101,7 @@ async function analyzePdfWithClaude(pdfBase64){
 
 async function runClaudeParser(){
   if(!pjsDoc||!sourcePdfUrl){showToast('Kein PDF geladen','err');return;}
-  var pages=getSelectedPages();
+  var pages=Array.from(selectedPages).sort(function(a,b){return a-b;});
   if(!pages.length){showToast('Keine Seiten ausgewählt','err');return;}
   var APIKEY=localStorage.getItem('morfApiKey')||'';
   if(!APIKEY){showToast('API-Key fehlt — ⚙ Einstellungen','err');return;}

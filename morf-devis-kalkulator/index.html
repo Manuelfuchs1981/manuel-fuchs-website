@@ -324,7 +324,7 @@ body{font-family:var(--font);font-size:13px;background:var(--bg);color:var(--tex
   <div class="drop-screen">
     <div class="drop-card">
       <div class="eyebrow">LV-Offerte</div>
-      <div style="font-family:var(--mono);font-size:9px;color:var(--dim);margin-bottom:8px">Deploy: 13.04.2026 07:52</div>
+      <div style="font-family:var(--mono);font-size:9px;color:var(--dim);margin-bottom:8px">Deploy: 13.04.2026 07:57</div>
       <h1>Leistungsverzeichnis<br>ausfüllen</h1>
       <div class="drop-zone" id="dropZone"
         ondragover="event.preventDefault();this.classList.add('over')"
@@ -990,7 +990,16 @@ async function runClaudeParser(){
           uebertragRow={y:line.y,ep:dots[0],gp:dots.length>1?dots[dots.length-1]:null};
           return;
         }
-        if(/\btotal\b/i.test(txt)) return;
+        // Chapter total: capture rightmost dot as total field
+        if(/\btotal\b/i.test(txt)){
+          // Find any dots on this line (right side) or use fixed far-right position
+          var totalDots=line.items.filter(function(it){ return /\.{3,}/.test(it.str); });
+          var totalX=totalDots.length?totalDots[totalDots.length-1].x:(pageW*0.75);
+          var totalW=totalDots.length?(totalDots[totalDots.length-1].w||pageW*0.2):(pageW*0.22);
+          pdfRows.push({y:line.y,text:txt,
+            ep:{x:totalX,y:line.y,w:totalW,str:'......'},gp:null,isKapitelTotal:true});
+          return;
+        }
         pdfRows.push({y:line.y,text:txt,ep:dots[0],gp:dots.length>1?dots[dots.length-1]:null});
       });
       console.log('[PDF.js] Page '+pi+': '+pdfRows.length+' price-rows'+(uebertragRow?' + \u00dcbertrag':''));
@@ -1066,6 +1075,14 @@ async function runClaudeParser(){
           var row=pdfRows[idx];
           var cl=clRows[idx]||{pos:'p'+pi+'_'+idx,qty:0,unit:''};
           // Trust Claude's qty; only use regex fallback if Claude returned 0
+          // Fix apostrophe qty: "1'070" → 1070
+          if((cl.qty===undefined||cl.qty===0)&&row.text){
+            var qtyFromText=row.text.match(/(\d[\d']+)\s+(?:m|m²|m2|St|gl|LE|h|pauschal)/i);
+            if(qtyFromText){
+              var qtyNum=parseFloat(qtyFromText[1].replace(/'/g,''));
+              if(!isNaN(qtyNum)&&qtyNum>0) cl.qty=qtyNum;
+            }
+          }
           if((cl.qty===0||cl.qty===undefined)&&!/\bper\b/i.test(row.text)){
             var unitPat='(m\u00b2|m2|m(?!\\w)|St\\.?|gl\\.?|kg|LE|Stk\\.?|h(?!\\w)|pauschal)';
             var qtyMatch=row.text.match(new RegExp('(\\d+\\.?\\d*)\\s+'+unitPat+'\\s','i'));
@@ -1078,7 +1095,7 @@ async function runClaudeParser(){
           if(/\bper\b/i.test(row.text)) cl.qty=0;
           var canvasY=Math.round((pageH-row.y)*S)-rowH+2;
           var epBox={x:Math.round(row.ep.x*S),y:canvasY,w:Math.round(row.ep.w*S),h:rowH};
-          var gpBox=(row.gp&&cl.qty>0)?{x:Math.round(row.gp.x*S),y:canvasY,
+          var gpBox=row.gp?{x:Math.round(row.gp.x*S),y:canvasY,
             w:Math.min(Math.round(row.gp.w*S),canvas.width-Math.round(row.gp.x*S)-2),h:rowH}:null;
           var key=cl.pos||('p'+pi+'_'+idx);
           if(parsedPos[key]) key+='_p'+pi;

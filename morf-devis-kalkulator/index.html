@@ -324,7 +324,7 @@ body{font-family:var(--font);font-size:13px;background:var(--bg);color:var(--tex
   <div class="drop-screen">
     <div class="drop-card">
       <div class="eyebrow">LV-Offerte</div>
-      <div style="font-family:var(--mono);font-size:9px;color:var(--dim);margin-bottom:8px">Deploy: 13.04.2026 07:57</div>
+      <div style="font-family:var(--mono);font-size:9px;color:var(--dim);margin-bottom:8px">Deploy: 13.04.2026 08:01</div>
       <h1>Leistungsverzeichnis<br>ausfüllen</h1>
       <div class="drop-zone" id="dropZone"
         ondragover="event.preventDefault();this.classList.add('over')"
@@ -923,6 +923,22 @@ async function runClaudeParser(){
         }
       }
 
+      // ── Cover page: detect left-side dotted lines (Unternehmer etc.) ──
+      var isCoverPage=pi===0&&lines.some(function(ln){
+        return ln.items.some(function(it){return /unternehmer|offertsumme|sachbearbeiter/i.test(it.str);});
+      });
+      if(isCoverPage){
+        lines.forEach(function(line){
+          var ldots=line.items.filter(function(it){return /\.{6,}/.test(it.str)&&it.x<pageW*0.6;});
+          if(!ldots.length) return;
+          var rowTxt=line.items.filter(function(it){return !/\.{3,}/.test(it.str);}).map(function(it){return it.str;}).join(' ').trim();
+          var dl=ldots[0];
+          pdfRows.push({y:line.y,text:rowTxt||'cover',
+            ep:{x:dl.x,y:dl.y,w:Math.max(dl.w||60,pageW*0.4),str:dl.str,h:dl.h||8},
+            gp:null,isCover:true});
+        });
+      }
+
       // Detect price rows: dots, SFr., or BauPlus "A....A" pattern right of 55%
       var dotThresholdX=pageW*0.55;
       var uebertragRow=null;
@@ -1000,7 +1016,15 @@ async function runClaudeParser(){
             ep:{x:totalX,y:line.y,w:totalW,str:'......'},gp:null,isKapitelTotal:true});
           return;
         }
-        pdfRows.push({y:line.y,text:txt,ep:dots[0],gp:dots.length>1?dots[dots.length-1]:null});
+        var epDot=dots[0];
+        var gpDot=dots.length>1?dots[dots.length-1]:null;
+        // BauPlus: one wide dot group covers both EP+GP columns → split in half
+        if(!gpDot&&epDot&&epDot.w>pageW*0.25){
+          var hw=epDot.w*0.49;
+          gpDot={x:epDot.x+hw+4,y:epDot.y,w:hw,str:'.......',h:epDot.h||8};
+          epDot={x:epDot.x,y:epDot.y,w:hw,str:'.......',h:epDot.h||8};
+        }
+        pdfRows.push({y:line.y,text:txt,ep:epDot,gp:gpDot});
       });
       console.log('[PDF.js] Page '+pi+': '+pdfRows.length+' price-rows'+(uebertragRow?' + \u00dcbertrag':''));
 
@@ -1064,7 +1088,7 @@ async function runClaudeParser(){
           var key=cl.pos||('p'+pi+'_'+Math.round(matchLine.y));
           if(parsedPos[key]) key+='_'+Math.round(matchLine.y);
           parsedPos[key]={pos:cl.pos||key, qty:cl.qty||0, unit:cl.unit||'',
-            ep:0, status:'price', pageIdx:pi, canvasW:canvas.width, canvasH:canvas.height,
+            ep:0, status:row.isKapitelTotal?'kapitelTotal':row.isCover?'cover':'price', isCover:row.isCover||false, pageIdx:pi, canvasW:canvas.width, canvasH:canvas.height,
             epBox:epBox, gpBox:null};
           placeField(key, overlay, parsedPos[key]);
           console.log('[Match]', cl.pos, 'qty='+qty, 'unit='+unit,
@@ -1261,6 +1285,12 @@ function makeField(key,type,box){
   el.style.left=box.x+'px';el.style.top=box.y+'px';
   el.style.width=box.w+'px';el.style.height=box.h+'px';
   el.style.fontSize='10px';
+  if(parsedPos[key]&&parsedPos[key].isCover){
+    el.style.textAlign='left';
+    el.style.paddingLeft='3px';
+    el.style.paddingRight='0';
+    el.style.background='rgba(255,252,220,0.9)';
+  }
   return el;
 }
 

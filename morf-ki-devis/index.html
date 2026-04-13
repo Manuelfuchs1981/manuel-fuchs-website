@@ -502,12 +502,10 @@ async function handleFile(file){
 
   // Parse filename: Angebot-{ProjNr}-{Bezeichnung}.pdf
   var fnMatch=file.name.replace(/\.pdf$/i,'').match(/^Angebot-?([0-9]+)-?(.+)$/i);
+  var parsedProjNr='', parsedName='';
   if(fnMatch){
-    var parsedProjNr=fnMatch[1].trim();
-    var parsedName=fnMatch[2].replace(/[_-]+/g,' ').trim();
-    document.getElementById('fMorfProjektNr').value=parsedProjNr;
-    document.getElementById('fBauvorhaben').value=parsedName;
-    onMorfProjNrInput(parsedProjNr); // auto-detect Filiale
+    parsedProjNr=fnMatch[1].trim();
+    parsedName=fnMatch[2].replace(/[_-]+/g,' ').trim();
     console.log('[Dateiname] ProjNr='+parsedProjNr+' Name='+parsedName);
   }
 
@@ -540,6 +538,14 @@ async function handleFile(file){
     if(!result.ok) throw new Error(result.error||'Fehler');
     hideSpinner();
     renderOfferte(result.offerte);
+    // Apply filename-parsed values AFTER render (override Claude's values)
+    if(parsedProjNr){
+      document.getElementById('fMorfProjektNr').value=parsedProjNr;
+      onMorfProjNrInput(parsedProjNr);
+    }
+    if(parsedName&&!result.offerte.bauvorhaben){
+      document.getElementById('fBauvorhaben').value=parsedName;
+    }
   }catch(e){
     hideSpinner();
     showToast('Fehler: '+e.message,'err');

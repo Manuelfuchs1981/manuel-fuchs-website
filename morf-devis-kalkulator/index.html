@@ -324,7 +324,7 @@ body{font-family:var(--font);font-size:13px;background:var(--bg);color:var(--tex
   <div class="drop-screen">
     <div class="drop-card">
       <div class="eyebrow">LV-Offerte</div>
-      <div style="font-family:var(--mono);font-size:9px;color:var(--dim);margin-bottom:8px">Deploy: 13.04.2026 08:01</div>
+      <div style="font-family:var(--mono);font-size:9px;color:var(--dim);margin-bottom:8px">Deploy: 13.04.2026 08:04</div>
       <h1>Leistungsverzeichnis<br>ausfüllen</h1>
       <div class="drop-zone" id="dropZone"
         ondragover="event.preventDefault();this.classList.add('over')"
@@ -923,21 +923,6 @@ async function runClaudeParser(){
         }
       }
 
-      // ── Cover page: detect left-side dotted lines (Unternehmer etc.) ──
-      var isCoverPage=pi===0&&lines.some(function(ln){
-        return ln.items.some(function(it){return /unternehmer|offertsumme|sachbearbeiter/i.test(it.str);});
-      });
-      if(isCoverPage){
-        lines.forEach(function(line){
-          var ldots=line.items.filter(function(it){return /\.{6,}/.test(it.str)&&it.x<pageW*0.6;});
-          if(!ldots.length) return;
-          var rowTxt=line.items.filter(function(it){return !/\.{3,}/.test(it.str);}).map(function(it){return it.str;}).join(' ').trim();
-          var dl=ldots[0];
-          pdfRows.push({y:line.y,text:rowTxt||'cover',
-            ep:{x:dl.x,y:dl.y,w:Math.max(dl.w||60,pageW*0.4),str:dl.str,h:dl.h||8},
-            gp:null,isCover:true});
-        });
-      }
 
       // Detect price rows: dots, SFr., or BauPlus "A....A" pattern right of 55%
       var dotThresholdX=pageW*0.55;
@@ -1026,6 +1011,22 @@ async function runClaudeParser(){
         }
         pdfRows.push({y:line.y,text:txt,ep:epDot,gp:gpDot});
       });
+      // ── Cover page: detect left-side dotted lines (Unternehmer etc.) ──
+      var isCoverPage=pi===0&&lines.some(function(ln){
+        return ln.items.some(function(it){return /unternehmer|offertsumme|sachbearbeiter/i.test(it.str);});
+      });
+      if(isCoverPage){
+        lines.forEach(function(line){
+          var ldots=line.items.filter(function(it){return /\.{6,}/.test(it.str)&&it.x<pageW*0.6;});
+          if(!ldots.length) return;
+          var rowTxt=line.items.filter(function(it){return !/\.{3,}/.test(it.str);}).map(function(it){return it.str;}).join(' ').trim();
+          var dl=ldots[0];
+          pdfRows.push({y:line.y,text:rowTxt||'cover',
+            ep:{x:dl.x,y:dl.y,w:Math.max(dl.w||60,pageW*0.4),str:dl.str,h:dl.h||8},
+            gp:null,isCover:true});
+        });
+      }
+
       console.log('[PDF.js] Page '+pi+': '+pdfRows.length+' price-rows'+(uebertragRow?' + \u00dcbertrag':''));
 
       var clRows=await askClaude(canvas,pdfRows);

@@ -7311,7 +7311,19 @@ TECHNOLOGIE-STACK:
                 }
 
                 // Handle system user
-                if (systemZugang) {
+                if (!systemZugang) {
+                    // Zugang entfernen falls vorhanden
+                    const existingId = document.getElementById('existingSystemUserId').value;
+                    if (existingId) {
+                        const { error } = await supabaseClient
+                            .rpc('delete_system_user', {
+                                p_session_token: sessionToken,
+                                p_id: parseInt(existingId)
+                            });
+                        if (error) throw error;
+                        console.log('✅ System user removed');
+                    }
+                } else if (systemZugang) {
                     const existingUserId = document.getElementById('existingSystemUserId').value;
 
                     const hashedPw = password ? await hashPassword(password) : null;
@@ -7355,6 +7367,7 @@ TECHNOLOGIE-STACK:
                         }
                         console.log('✅ System user created');
                     }
+                }
                 }
 
                 closeMitarbeiterDialog();

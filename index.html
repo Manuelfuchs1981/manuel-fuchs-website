@@ -201,6 +201,43 @@
       z-index: 10;
       user-select: none;
     }
+
+    /* ── Centered Logo ────────────────────────── */
+    .center-logo {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 324px;
+      height: 324px;
+      z-index: 5;
+    }
+    .center-logo .network-canvas {
+      width: 324px;
+      height: 324px;
+    }
+    .center-logo-text {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 324px;
+      height: 324px;
+      pointer-events: none;
+      z-index: 4;
+    }
+    .center-logo-text svg {
+      width: 324px;
+      height: 324px;
+      animation: spinText 22s linear infinite;
+    }
+    .center-logo-text text {
+      font-family: 'Roboto', sans-serif;
+      font-size: 27px;
+      font-weight: 700;
+      fill: rgba(168,168,176,0.75);
+      text-transform: uppercase;
+    }
   </style>
 </head>
 <body>
@@ -220,6 +257,18 @@
       <text>
         <textPath href="#circle-path" startOffset="0%" textLength="276" lengthAdjust="spacing">MANUEL FUCHS · DIGITALPROZESSE · </textPath>
       </text>
+    </svg>
+  </div>
+
+
+  <!-- Centered Logo -->
+  <div class="center-logo" id="centerLogo">
+    <canvas class="network-canvas" id="networkLogoCenter" width="324" height="324"></canvas>
+  </div>
+  <div class="center-logo-text">
+    <svg viewBox="0 0 324 324" xmlns="http://www.w3.org/2000/svg">
+      <defs><path id="cp2" d="M162,162 m-132,0 a132,132 0 1,1 264,0 a132,132 0 1,1 -264,0"/></defs>
+      <text><textPath href="#cp2" startOffset="0%" textLength="830" lengthAdjust="spacing">MANUEL FUCHS · DIGITALPROZESSE · </textPath></text>
     </svg>
   </div>
 
@@ -324,7 +373,55 @@
       }
       draw();
     })();
+
+    // Center 3D Network Logo
+    (function() {
+      var canvas = document.getElementById('networkLogoCenter');
+      if (!canvas) return;
+      var ctx = canvas.getContext('2d');
+      var W=324,H=324,CX=162,CY=162,R=108;
+      var isHover=false, t=0;
+      canvas.closest('.center-logo').addEventListener('mouseenter',function(){
+        isHover=true;
+        var txt=document.querySelector('.center-logo-text text');
+        if(txt) txt.style.fill='rgba(200,168,75,0.9)';
+      });
+      canvas.closest('.center-logo').addEventListener('mouseleave',function(){
+        isHover=false;
+        var txt=document.querySelector('.center-logo-text text');
+        if(txt) txt.style.fill='rgba(168,168,176,0.75)';
+      });
+      var nodes=[[0,R,0],[R*.7,R*.5,R*.5],[-R*.7,R*.5,R*.5],[R*.7,-R*.5,-R*.3],[-R*.7,-R*.5,-R*.3],[0,-R,0],[R*.4,R*.2,-R*.8],[-R*.4,R*.3,-R*.8],[R*.85,-R*.1,.2],[-R*.85,-R*.1,.2]];
+      var edges=[[0,1],[0,2],[0,6],[0,7],[1,3],[1,8],[2,4],[2,9],[3,5],[4,5],[3,8],[4,9],[5,6],[5,7],[6,7],[8,9],[1,2],[3,4]];
+      function rotY(p,a){var c=Math.cos(a),s=Math.sin(a);return[p[0]*c+p[2]*s,p[1],-p[0]*s+p[2]*c];}
+      function rotX(p,a){var c=Math.cos(a),s=Math.sin(a);return[p[0],p[1]*c-p[2]*s,p[1]*s+p[2]*c];}
+      function proj(p){var fov=600,z=p[2]+fov;return[CX+p[0]*fov/z,CY-p[1]*fov/z,p[2]];}
+      function draw(){
+        ctx.clearRect(0,0,W,H); t+=0.009;
+        var rotated=nodes.map(function(p){return rotX(rotY(p,t),Math.sin(t*.35)*.35);});
+        var projected=rotated.map(proj);
+        edges.forEach(function(e){
+          var pa=projected[e[0]],pb=projected[e[1]];
+          var depth=((pa[2]+pb[2])/2+R)/(R*2);
+          var alpha=Math.max(0.06,depth*0.5+0.05);
+          ctx.beginPath();ctx.moveTo(pa[0],pa[1]);ctx.lineTo(pb[0],pb[1]);
+          ctx.strokeStyle=isHover?'rgba(200,168,75,'+alpha+')':'rgba(168,168,176,'+alpha+')';
+          ctx.lineWidth=2;ctx.stroke();
+        });
+        projected.forEach(function(p,i){
+          var depth=(rotated[i][2]+R)/(R*2);
+          var size=3+depth*6,alpha=0.4+depth*0.6;
+          var g=ctx.createRadialGradient(p[0]-size*.3,p[1]-size*.3,0,p[0],p[1],size);
+          if(isHover){g.addColorStop(0,'rgba(245,224,128,'+alpha+')');g.addColorStop(1,'rgba(150,100,20,'+(alpha*.3)+')');}
+          else{g.addColorStop(0,'rgba(220,220,228,'+alpha+')');g.addColorStop(1,'rgba(80,80,90,'+(alpha*.3)+')');}
+          ctx.beginPath();ctx.arc(p[0],p[1],size,0,Math.PI*2);ctx.fillStyle=g;ctx.fill();
+        });
+        requestAnimationFrame(draw);
+      }
+      draw();
+    })();
+
   </script>
-  <div class="deploy-time">⟳ 11.04.2026 - 06:55</div>
+  <div class="deploy-time">⟳ 29.04.2026 - 13:49</div>
 </body>
 </html>

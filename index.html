@@ -242,9 +242,19 @@
     /* ── Hide top-left logo on index ─────────── */
     .logo-link { display: none; }
     .logo-text-wrap { display: none; }
+
+    /* ── Mouse Trail ──────────────────────────── */
+    .trail-canvas {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      pointer-events: none;
+      z-index: 1;
+    }
   </style>
 </head>
 <body>
+  <canvas class="trail-canvas" id="trailCanvas"></canvas>
 
   <!-- Network Logo -->
   <a href="https://www.manuel-fuchs.ch" class="logo-link" aria-label="Home">
@@ -423,6 +433,68 @@
         requestAnimationFrame(draw);
       }
       draw();
+    })();
+
+
+    // Mouse Trail
+    (function() {
+      var canvas = document.getElementById('trailCanvas');
+      var ctx = canvas.getContext('2d');
+      var particles = [];
+
+      function resize() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+      }
+      resize();
+      window.addEventListener('resize', resize);
+
+      window.addEventListener('mousemove', function(e) {
+        for (var i = 0; i < 3; i++) {
+          particles.push({
+            x: e.clientX + (Math.random() - 0.5) * 6,
+            y: e.clientY + (Math.random() - 0.5) * 6,
+            size: Math.random() * 4 + 2,
+            alpha: 1,
+            decay: Math.random() * 0.02 + 0.008,
+            vx: (Math.random() - 0.5) * 0.5,
+            vy: (Math.random() - 0.5) * 0.5,
+            gold: Math.random() > 0.5
+          });
+        }
+      });
+
+      function animate() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        particles = particles.filter(function(p) { return p.alpha > 0; });
+
+        particles.forEach(function(p) {
+          p.x += p.vx;
+          p.y += p.vy;
+          p.alpha -= p.decay;
+          p.size *= 0.995;
+
+          var grad = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.size * 2);
+          if (p.gold) {
+            grad.addColorStop(0, 'rgba(245,224,128,' + p.alpha + ')');
+            grad.addColorStop(0.4, 'rgba(200,168,75,' + (p.alpha * 0.6) + ')');
+            grad.addColorStop(1, 'rgba(200,168,75,0)');
+          } else {
+            grad.addColorStop(0, 'rgba(255,255,255,' + p.alpha + ')');
+            grad.addColorStop(0.4, 'rgba(200,200,210,' + (p.alpha * 0.5) + ')');
+            grad.addColorStop(1, 'rgba(200,200,210,0)');
+          }
+
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, p.size * 2, 0, Math.PI * 2);
+          ctx.fillStyle = grad;
+          ctx.fill();
+        });
+
+        requestAnimationFrame(animate);
+      }
+      animate();
     })();
 
   </script>

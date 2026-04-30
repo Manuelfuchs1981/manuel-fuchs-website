@@ -839,7 +839,7 @@ TECHNOLOGIE-STACK:
         }
 
         .data-table thead {
-            background: #dde0e5;
+            background: #e0e0e0;
         }
 
         .data-table th {
@@ -1158,7 +1158,7 @@ TECHNOLOGIE-STACK:
             width: 13px;
             height: 13px;
             accent-color: #6b7280;
-            border: 1px solid #dde0e5;
+            border: 1px solid #e0e0e0;
         }
 
         .filter-option:first-child {
@@ -2206,18 +2206,20 @@ TECHNOLOGIE-STACK:
                 <!-- UNTEN: Gantt Planungsleiste -->
                 <div class="data-card" style="overflow:hidden;">
                     <div style="padding:10px 16px; border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
-                        <div style="display:flex; align-items:center; gap:8px;">
-                            <strong style="font-size:14px;">📅 Planung</strong>
-                            <button class="btn btn-secondary" onclick="tpScrollToToday()" style="padding:4px 10px; font-size:13px;">Heute</button>
-                            <button class="btn btn-secondary" onclick="tpResetAlleDispos()" style="padding:4px 10px; font-size:13px; color:#ef4444; border-color:#ef4444;" title="Alle geplanten Aufträge zurück in die Liste">🗑 Planung leeren</button>
+                        <div style="display:flex;align-items:center;gap:8px;flex:1;">
+                            <strong style="font-size:14px;cursor:pointer;" onclick="document.getElementById('tpDatePicker').showPicker?.() || document.getElementById('tpDatePicker').click()">📅 Planung</strong>
+                            <input type="date" id="tpDatePicker" onchange="tpGoDate(this.value)"
+                                style="position:absolute;opacity:0;width:0;height:0;pointer-events:none;">
+                            <button class="btn btn-secondary" onclick="tpGoToday()" style="padding:4px 10px; font-size:13px;">Heute</button>
+                            <button class="btn btn-secondary" onclick="tpNavDate(-1)" style="padding:4px 10px; font-size:16px;">‹</button>
+                            <span id="tpDateLabel" style="font-size:13px;font-weight:600;min-width:280px;text-align:center;"></span>
+                            <button class="btn btn-secondary" onclick="tpNavDate(1)" style="padding:4px 10px; font-size:16px;">›</button>
+                            <span style="flex:1;"></span>
+                            <button onclick="tpResetAlleDispos()" title="Planung leeren"
+                                style="background:none;border:none;cursor:pointer;font-size:16px;color:#ef4444;padding:4px 6px;line-height:1;">🗑</button>
                         </div>
-                        <span style="font-size:12px; color:var(--text-gray);">Auftrag auf gewünschten Tag ziehen · 12 Monate vorwärts scrollbar</span>
                     </div>
-                    <div style="overflow-x:auto; overflow-y:auto; cursor:grab;" id="tpGanttScroll"
-                        onmousedown="tpScrollStart(event)" onmousemove="tpScrollMove(event);tpPreviewMove(event);" onmouseup="tpScrollEnd()" onmouseleave="tpScrollEnd();tpPreviewHide();" ondragleave="tpPreviewHide()" style="position:relative;">
-                        <div id="tpPlanungsleiste" style="min-width:1540px;"></div>
-
-                    </div>
+                    <div id="tpGanttWrap" style="border:1px solid #e5e7eb;overflow:hidden;"></div>
                 </div>
             </div>
 
@@ -4502,7 +4504,7 @@ TECHNOLOGIE-STACK:
                         <th>Ausführung</th>
                         <th style="cursor:pointer; user-select:none; white-space:nowrap;" onclick="sortAuftraege('aufwand_stunden')">Aufwand <span id="sort_aufwand_stunden"><span style="display:inline-flex;flex-direction:column;gap:0px;font-size:8px;vertical-align:middle;color:#aaa;margin-left:3px;"><span>▲</span><span>▼</span></span></span></th>
                         <th style="cursor:pointer; user-select:none; white-space:nowrap;" onclick="sortAuftraege('verantwortlicher')">TKB <span id="sort_verantwortlicher"><span style="display:inline-flex;flex-direction:column;gap:0px;font-size:8px;vertical-align:middle;color:#aaa;margin-left:3px;"><span>▲</span><span>▼</span></span></span></th>
-                        <th style="position:sticky; right:0; background:#dde0e5; z-index:1;"></th>
+                        <th style="position:sticky; right:0; background:#e8e8e8; z-index:1;"></th>
                     </tr></thead>
                     <tbody>${rows}</tbody>
                 </table>
@@ -4979,7 +4981,11 @@ TECHNOLOGIE-STACK:
         // ============================================
         // TAGESPROGRAMM
         // ============================================
+        let tpCurrentDate = new Date(); // aktuell angezeigter Tag
+        tpCurrentDate.setHours(0,0,0,0);
         let tpAllAuftraege = [];
+        let tpAllMAs = [];       // alle aktiven MA (nicht EC)
+        let tpTeamOverrides = {}; // { 'ecId_datum': [mitarbeiter_id, ...] }
         let tpDispoMap = {}; // auftrag_id -> dispo
         let tpECs = [];
         let tpDragAuftragId = null;
@@ -5007,12 +5013,38 @@ TECHNOLOGIE-STACK:
             } catch(err) { alert('❌ ' + err.message); }
         }
 
-        function tpScrollToToday() {
-            const scrollEl = document.getElementById('tpGanttScroll');
-            if (!scrollEl) return;
-            const todayLeft = TP_EC_W + TP_DAYS_BEFORE * TP_DAY_W - scrollEl.clientWidth / 2;
-            scrollEl.scrollLeft = Math.max(0, todayLeft);
+
+
+
+        function tpGoDate(iso) {
+            if (!iso) return;
+            tpCurrentDate = new Date(iso + 'T00:00:00');
+            renderTagesprogramm();
         }
+        function tpGoToday() {
+            tpCurrentDate = new Date(); tpCurrentDate.setHours(0,0,0,0);
+            renderTagesprogramm();
+        }
+        function tpNavDate(dir) {
+            tpCurrentDate.setDate(tpCurrentDate.getDate() + dir);
+            renderTagesprogramm();
+        }
+        function tpDateISO(d) {
+            return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+        }
+        function tpDateLabel(d) {
+            const days = ['Sonntag','Montag','Dienstag','Mittwoch','Donnerstag','Freitag','Samstag'];
+            const months = ['Januar','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember'];
+            const kw = (() => {
+                const t = new Date(d); t.setHours(0,0,0,0);
+                t.setDate(t.getDate()+3-(t.getDay()+6)%7);
+                const w1 = new Date(t.getFullYear(),0,4);
+                return String(1+Math.round(((t-w1)/86400000-3+(w1.getDay()+6)%7)/7)).padStart(2,'0');
+            })();
+            return `${days[d.getDay()]}, ${d.getDate()}. ${months[d.getMonth()]} ${d.getFullYear()} · KW ${kw}`;
+        }
+
+
 
         function tpNavDay(dir) {
             const el = document.getElementById('tpSelectedDate');
@@ -5023,27 +5055,30 @@ TECHNOLOGIE-STACK:
             renderTagesprogramm();
         }
 
-        function tpGoToday() {
-            const el = document.getElementById('tpSelectedDate');
-            if (el) el.value = new Date().toISOString().slice(0,10);
-            renderTagesprogramm();
-        }
-
         async function loadTagesprogramm() {
             // Datum initialisieren
             const dateEl = document.getElementById('tpSelectedDate');
             if (dateEl && !dateEl.value) dateEl.value = new Date().toISOString().slice(0,10);
             try {
-                const [auftraegeRes, dispoRes, ecRes] = await Promise.all([
+                const [auftraegeRes, dispoRes, ecRes, maRes, teamRes] = await Promise.all([
                     supabaseClient.from('auftraege').select('*, verantwortlicher:system_users!verantwortlicher_id(name)').order('einsatzdatum'),
                     supabaseClient.from('dispo_einsaetze').select('*, ec:mitarbeiter!ec_id(vorname, nachname)'),
-                    supabaseClient.from('v_mitarbeiter_aktiv').select('id, vorname, nachname').eq('funktion', 'EC').eq('aktiv', true).order('nachname')
+                    supabaseClient.from('v_mitarbeiter_aktiv').select('id, vorname, nachname').eq('funktion', 'EC').eq('aktiv', true).order('nachname'),
+                    supabaseClient.from('v_mitarbeiter_aktiv').select('id, vorname, nachname, assigned_ec').eq('aktiv', true).neq('funktion', 'EC').order('nachname'),
+                    supabaseClient.from('ec_tages_team').select('*')
                 ]);
                 tpAllAuftraege = auftraegeRes.data || [];
                 tpECs = ecRes.data || [];
-                // Map auftrag_id -> dispo
+                tpAllMAs = maRes.data || [];
                 tpDispoMap = {};
                 (dispoRes.data || []).forEach(d => { tpDispoMap[d.auftrag_id] = d; });
+                // Team-Overrides: { 'ecId_datum': [ma_id, ...] }
+                tpTeamOverrides = {};
+                (teamRes.data || []).forEach(t => {
+                    const key = `${t.ec_id}_${t.datum}`;
+                    if (!tpTeamOverrides[key]) tpTeamOverrides[key] = [];
+                    tpTeamOverrides[key].push(t.mitarbeiter_id);
+                });
                 renderTagesprogramm();
             } catch (err) {
                 console.error('Tagesprogramm laden:', err);
@@ -5117,7 +5152,7 @@ TECHNOLOGIE-STACK:
             }).join('');
 
             container.innerHTML = `<table style="width:100%; border-collapse:collapse; font-size:13px;">
-                <thead><tr style="background:#dde0e5; font-size:11px; text-transform:uppercase; position:sticky; top:0; z-index:1;">
+                <thead><tr style="background:#e8e8e8; font-size:11px; text-transform:uppercase; position:sticky; top:0; z-index:1;">
                     <th style="padding:6px 10px; text-align:left; font-weight:600; color:var(--text-gray);">Status</th>
                     
                     <th style="padding:6px 6px; text-align:left; font-weight:600; color:var(--text-gray);">Datum</th>
@@ -5144,13 +5179,17 @@ TECHNOLOGIE-STACK:
         // Zeitstrahl: Stunden als X-Achse, Start = heute 00:00, 365 Tage vorwärts
         const TP_HOUR_W  = 60;    // px pro Stunde (15min = 15px)
         const TP_EC_W    = 110;   // px EC-Spalte
-        const TP_ROW_H   = 28;    // px Zeilenhöhe
-        const TP_DAYS    = 365;   // Gesamtbereich in Tagen
-        const TP_TOTAL_H = TP_DAYS * 24; // Gesamtstunden
+        const TP_ROW_H      = 28;   // px Zeilenhöhe
+        const TP_DAYS_BACK  = 30;   // Tage in die Vergangenheit
+        const TP_DAYS_FWD   = 365;  // Tage in die Zukunft
+        const TP_DAYS       = TP_DAYS_BACK + TP_DAYS_FWD;
+        const TP_TOTAL_H    = TP_DAYS * 24;
 
-        // Startpunkt: heute 00:00 Uhr lokal
+        // Startpunkt: 30 Tage vor heute 00:00 Uhr lokal
         function tpStartDate() {
-            const d = new Date(); d.setHours(0,0,0,0); return d;
+            const d = new Date(); d.setHours(0,0,0,0);
+            d.setDate(d.getDate() - TP_DAYS_BACK);
+            return d;
         }
         function tpHoursFromISO(iso, startH = 0) {
             const start = tpStartDate();
@@ -5166,163 +5205,116 @@ TECHNOLOGIE-STACK:
         }
 
         function renderTpGantt() {
-            const container = document.getElementById('tpPlanungsleiste');
-            const start = tpStartDate();
+            const wrap = document.getElementById('tpGanttWrap');
+            if (!wrap) return;
+
+            const iso = tpDateISO(tpCurrentDate);
+
+            // Datum-Label
+            const lbl = document.getElementById('tpDateLabel');
+            if (lbl) lbl.textContent = tpDateLabel(tpCurrentDate);
+
+            // Now-Linie %
             const now = new Date();
-            const nowH = (now - start) / 3600000; // aktuelle Stunde relativ zum Start
-            const totalW = TP_TOTAL_H * TP_HOUR_W;
+            const todayISO = tpDateISO(now);
+            const nowPct = iso === todayISO
+                ? ((now.getHours() + now.getMinutes()/60) / 24 * 100).toFixed(3) + '%'
+                : null;
 
-            // === HEADER: 3 Zeilen – Monat / Datum / Uhrzeit ===
-            let hMonth = '', hDay = '', hHour = '';
-            let curMonth = -1, curMonthStartH = 0;
+            // Stunden-Grid als Hintergrund (CSS)
+            const gridBg = `repeating-linear-gradient(90deg,
+                transparent 0%,
+                transparent calc(${(100/24).toFixed(4)}% - 1px),
+                #e0e0e0 calc(${(100/24).toFixed(4)}% - 1px),
+                #e0e0e0 ${(100/24).toFixed(4)}%)`;
 
-            for (let day = 0; day < TP_DAYS; day++) {
-                const dayStart = day * 24;
-                const d = new Date(start.getTime() + day * 86400000);
-                const wd = d.getDay();
-                const isToday = day === 0;
-                const isWeekend = wd === 0 || wd === 6;
-                const dayNames = ['So','Mo','Di','Mi','Do','Fr','Sa'];
-                const left = dayStart * TP_HOUR_W;
-                const dayW = 24 * TP_HOUR_W;
+            const qGridBg = `repeating-linear-gradient(90deg,
+                transparent 0%,
+                transparent calc(${(100/96).toFixed(4)}% - 0.5px),
+                #f0f0f0 calc(${(100/96).toFixed(4)}% - 0.5px),
+                #f0f0f0 ${(100/96).toFixed(4)}%)`;
 
-                // Monat wechsel
-                if (d.getMonth() !== curMonth) {
-                    if (curMonth !== -1) {
-                        const mW = (dayStart - curMonthStartH) * TP_HOUR_W;
-                        hMonth += `<div style="position:absolute;left:${curMonthStartH*TP_HOUR_W}px;width:${mW}px;
-                            font-size:10px;font-weight:700;color:#444;padding:1px 5px;border-right:2px solid #aaa;
-                            overflow:hidden;white-space:nowrap;background:#dde0e5;">
-                            ${new Date(start.getTime()+curMonthStartH*3600000).toLocaleDateString('de-CH',{month:'long',year:'numeric'})}
-                        </div>`;
-                    }
-                    curMonth = d.getMonth();
-                    curMonthStartH = dayStart;
-                }
+            // Grid-Struktur: rows = header + eine pro EC
+            // Spalten: Name (auto) | Timeline (1fr)
+            const ecCount = tpECs.length;
+            const gridRows = 'auto ' + tpECs.map(() => 'auto').join(' ');
 
-                // Tag-Header
-                hDay += `<div style="position:absolute;left:${left}px;width:${dayW}px;height:100%;
-                    border-left:2px solid ${wd===1?'#999':'#d1d5db'};
-                    background:${isToday?'#dbeafe44':isWeekend?'#f3f4f644':'transparent'};
-                    display:flex;align-items:center;justify-content:center;gap:3px;font-size:10px;
-                    color:${isWeekend?'#9ca3af':isToday?'#1d4ed8':'#555'};font-weight:${isToday?'700':'400'};">
-                    ${dayNames[wd]} ${d.getDate()}.${d.getMonth()+1}.
+            let html = `<div style="display:grid;grid-template-columns:minmax(120px,15%) 1fr;grid-template-rows:${gridRows};border:1px solid #e0e0e0;">`;
+
+            // Header links (leer)
+            html += `<div style="background:#e8e8e8;border-bottom:2px solid #bbb;border-right:2px solid #d1d5db;padding:0.3em 0.6em;font-size:0.7em;color:#999;display:flex;align-items:center;">EC</div>`;
+
+            // Header rechts (Stunden)
+            html += `<div style="position:relative;background:#e8e8e8;border-bottom:2px solid #bbb;overflow:hidden;">`;
+            for (let h = 0; h < 24; h++) {
+                html += `<div style="position:absolute;left:${(h/24*100).toFixed(3)}%;width:${(100/24).toFixed(3)}%;height:100%;
+                    border-left:1px solid #ccc;display:flex;align-items:center;justify-content:center;
+                    font-size:clamp(7px,0.65vw,11px);font-weight:600;color:#555;box-sizing:border-box;">
+                    ${String(h).padStart(2,'0')}:00
                 </div>`;
-
-                // Nur volle Stunden
-                for (let h = 0; h < 24; h++) {
-                    const qLeft = (dayStart + h) * TP_HOUR_W;
-                    hHour += `<div style="position:absolute;left:${qLeft}px;width:${TP_HOUR_W}px;height:100%;
-                        border-left:1px solid ${h===0?'#bbb':'#ccc'};
-                        box-sizing:border-box;display:flex;align-items:center;justify-content:center;overflow:hidden;">
-                        <span style="font-size:8px;color:#4A5967;font-weight:600;white-space:nowrap;">
-                            ${String(h).padStart(2,'0')}:00</span>
-                    </div>`;
-                }
             }
-            // Letzter Monat
-            const mW2 = (TP_TOTAL_H - curMonthStartH) * TP_HOUR_W;
-            hMonth += `<div style="position:absolute;left:${curMonthStartH*TP_HOUR_W}px;width:${mW2}px;
-                font-size:10px;font-weight:700;color:#444;padding:1px 5px;overflow:hidden;white-space:nowrap;background:#dde0e5;">
-                ${new Date(start.getTime()+curMonthStartH*3600000).toLocaleDateString('de-CH',{month:'long',year:'numeric'})}
-            </div>`;
+            html += `</div>`;
 
-            // Jetzt-Linie
-            const nowLine = `<div style="position:absolute;left:${nowH*TP_HOUR_W}px;top:0;bottom:0;width:1px;background:rgba(220,50,50,0.5);z-index:5;pointer-events:none;"></div>`;
+            // EC Zeilen
+            tpECs.forEach(ec => {
+                const team = tpAllMAs.filter(m => String(m.assigned_ec) === String(ec.id));
 
-            // === EC ZEILEN ===
-            let rows = '';
-            tpECs.forEach((ec, idx) => {
-                const dispoForEc = Object.values(tpDispoMap).filter(d => String(d.ec_id) === String(ec.id));
+                // Linke Spalte: Name
+                html += `<div style="border-bottom:2px solid #d1d5db;border-right:2px solid #d1d5db;
+                    background:white;padding:0.2em 0.6em;display:flex;flex-direction:column;justify-content:center;gap:0.1em;">
+                    <div style="font-size:clamp(9px,0.8vw,13px);font-weight:700;color:#111;white-space:nowrap;">
+                        ${ec.vorname} ${ec.nachname}
+                    </div>
+                    <div style="font-size:clamp(7px,0.6vw,10px);color:#888;white-space:nowrap;">
+                        ${team.map(m => `<span data-maid="${m.id}" data-ecid="${ec.id}"
+                            onmousedown="tpPickupMA(event,${m.id},${ec.id})"
+                            style="cursor:grab;user-select:none;">${m.vorname} ${m.nachname}</span>`)
+                            .join('<span style="color:#ccc;margin:0 0.3em;">|</span>')}
+                    </div>
+                </div>`;
 
+                // Rechte Spalte: Timeline
                 let bars = '';
-                dispoForEc.forEach(d => {
-                    const a = tpAllAuftraege.find(x => x.id === d.auftrag_id);
-                    if (!a || !d.einsatzdatum) return;
-                    const sc = STATUS_CONFIG[a.status] || STATUS_CONFIG['KB'];
-                    const ort = (a.einsatzort||'').match(/\d{4}\s+(.+)/)?.[1]?.trim() || '–';
-                    const aufwand = a.aufwand_stunden || 1;
+                Object.values(tpDispoMap)
+                    .filter(d => String(d.ec_id) === String(ec.id) && d.einsatzdatum === iso)
+                    .forEach(d => {
+                        const a = tpAllAuftraege.find(x => x.id === d.auftrag_id);
+                        if (!a) return;
+                        const sc = STATUS_CONFIG[a.status] || STATUS_CONFIG['KB'];
+                        const ort = (a.einsatzort||'').match(/\d{4}\s+(.+)/)?.[1]?.trim() || '–';
+                        const aufwand = a.aufwand_stunden || 1;
+                        let startH = 7;
+                        if (d.startzeit) { const p = d.startzeit.split(':'); startH = parseInt(p[0]) + parseInt(p[1]||0)/60; }
+                        const leftPct = (startH/24*100).toFixed(3);
+                        const widthPct = Math.max(aufwand/24*100, 0.5).toFixed(3);
+                        bars += `<div onmousedown="tpPickupBar(event,${a.id})"
+                            style="position:absolute;left:${leftPct}%;width:${widthPct}%;top:3px;bottom:3px;
+                                background:${sc.color}22;border:1.5px solid ${sc.color};border-radius:3px;
+                                cursor:grab;overflow:hidden;display:flex;align-items:center;padding:0 0.3em;
+                                box-sizing:border-box;user-select:none;z-index:2;min-width:4px;">
+                            <span style="font-size:clamp(7px,0.6vw,10px);font-weight:700;color:${sc.color};
+                                white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+                                ${(d.startzeit||'').slice(0,5)}–${(d.endzeit||'').slice(0,5)}
+                                <span style="font-weight:400;color:#555;"> ${a.projektnummer||''} · ${ort}</span>
+                                <span onclick="tpRemoveFromPlan(${a.id})" style="color:#aaa;cursor:pointer;margin-left:0.3em;">✕</span>
+                            </span>
+                        </div>`;
+                    });
 
-                    // Startzeit aus Dispo (HH:MM) oder default 07:00
-                    let startFrac = 7;
-                    if (d.startzeit) {
-                        const p = d.startzeit.split(':');
-                        startFrac = parseInt(p[0]) + parseInt(p[1]||0)/60;
-                    }
-                    const barLeft = tpHoursFromISO(d.einsatzdatum, startFrac) * TP_HOUR_W;
-                    const barW = Math.max(aufwand * TP_HOUR_W - 4, 20);
-                    if (barLeft < 0 || barLeft > totalW) return;
-
-                    bars += `<div
-                        onmousedown="tpPickupBar(event,${a.id})"
-                        title="${a.projektnummer||''} · ${ort} · ${aufwand}h"
-                        style="position:absolute;left:${barLeft}px;width:${barW}px;
-                            top:2px;height:${TP_ROW_H-5}px;
-                            background:${sc.color}33;border:1.5px solid ${sc.color};border-radius:5px;
-                            cursor:grab;overflow:hidden;display:flex;align-items:center;padding:0 5px;
-                            box-sizing:border-box;user-select:none;z-index:4;">
-                        <div style="flex:1;min-width:0;display:flex;align-items:center;gap:5px;overflow:hidden;">
-                            <span style="font-size:9px;font-weight:700;color:${sc.color};white-space:nowrap;flex-shrink:0;">${(d.startzeit||'--:--').slice(0,5)}–${(d.endzeit||'--:--').slice(0,5)}</span>
-                            <span style="font-size:9px;color:#555;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${a.projektnummer||''} · ${ort}</span>
-                        </div>
-                        <span onclick="tpRemoveFromPlan(${a.id})" style="font-size:10px;color:#aaa;cursor:pointer;flex-shrink:0;">✕</span>
-                    </div>`;
-                });
-
-                // Stunden-Hintergrundgitter + Drop-Zonen (tagesweise)
-                let bgGrid = '';
-                for (let day = 0; day < TP_DAYS; day++) {
-                    const iso = tpISOFromHours(day * 24);
-                    const wd = new Date(iso+'T12:00:00').getDay();
-                    const isWeekend = wd===0||wd===6;
-                    const isToday = day===0;
-                    const left = day * 24 * TP_HOUR_W;
-                    const dayW = 24 * TP_HOUR_W;
-                    bgGrid += `<div data-date="${iso}"
-                            style="position:absolute;left:${left}px;width:${dayW}px;height:100%;
-                            border-left:1px solid #e5e7eb;">
-                    </div>`;
-                }
-
-                rows += `<div style="display:flex;background:white;height:${TP_ROW_H}px;border-bottom:1px solid #e5e7eb;">
-                    <div style="width:${TP_EC_W}px;min-width:${TP_EC_W}px;padding:6px 10px;
-                        border-right:1px solid #e5e7eb;font-size:12px;font-weight:600;
-                        display:flex;align-items:center;
-                        position:sticky;left:0;z-index:5;background:white;box-shadow:2px 0 4px rgba(0,0,0,0.04);">
-                        <span>${ec.vorname} ${ec.nachname}</span>
-                    </div>
-                    <div data-ecid="${ec.id}" style="position:relative;width:${totalW}px;height:${TP_ROW_H}px;overflow:hidden;flex-shrink:0;">
-                        ${bgGrid}
-                        ${nowLine}
-                        ${bars}
-                    </div>
+                html += `<div data-ecid="${ec.id}" data-date="${iso}"
+                    style="position:relative;border-bottom:2px solid #d1d5db;overflow:hidden;
+                    background-image:${qGridBg},${gridBg};background-size:100% 100%;">
+                    ${nowPct ? `<div style="position:absolute;left:${nowPct};top:0;bottom:0;width:1px;background:rgba(220,50,50,0.6);z-index:3;pointer-events:none;"></div>` : ''}
+                    ${bars}
                 </div>`;
             });
 
-            container.innerHTML = `
-                <div style="display:flex;position:sticky;top:0;z-index:10;background:#dde0e5;border-bottom:2px solid #aaa;">
-                    <div style="width:${TP_EC_W}px;min-width:${TP_EC_W}px;padding:6px 10px;font-size:11px;
-                        font-weight:700;text-transform:uppercase;color:var(--text-gray);
-                        border-right:1px solid #ccc;position:sticky;left:0;z-index:11;background:#dde0e5;box-shadow:2px 0 4px rgba(0,0,0,0.04);">EC</div>
-                    <div style="position:relative;width:${totalW}px;flex-shrink:0;">
-                        <div style="position:relative;height:14px;background:#c8cdd4;border-bottom:1px solid #aaa;">${hMonth}</div>
-                        <div style="position:relative;height:20px;background:#dde0e5;border-bottom:1px solid #bbb;">${hDay}</div>
-                        <div style="position:relative;height:16px;background:#eaecef;border-bottom:2px solid #aaa;">${hHour}</div>
-                    </div>
-                </div>
-                ${rows}`;
-
-            // Scroll-Position beibehalten, nur beim ersten Laden zu jetzt springen
-            requestAnimationFrame(() => {
-                const scrollEl = document.getElementById('tpGanttScroll');
-                if (!scrollEl) return;
-                if (scrollEl.dataset.initialized !== '1') {
-                    const nowLeft = TP_EC_W + nowH * TP_HOUR_W - 80;
-                    scrollEl.scrollLeft = Math.max(0, nowLeft);
-                    scrollEl.dataset.initialized = '1';
-                }
-            });
+            html += '</div>';
+            wrap.innerHTML = html;
         }
+
+
+
 
         function tpBarDragStart(event, auftragId, fromDate, startFrac) {
             tpDragAuftragId = auftragId;
@@ -5650,7 +5642,7 @@ TECHNOLOGIE-STACK:
             }
 
             // EC-Zeile
-            const HEADER_H = 52;
+            const HEADER_H = 18; // nur Stunden-Zeile im Scroll-Container
             const relY  = e.clientY - gr.top;
             const ecIdx = Math.floor((relY - HEADER_H) / TP_ROW_H);
             if (ecIdx < 0 || ecIdx >= tpECs.length) {
@@ -5659,9 +5651,11 @@ TECHNOLOGIE-STACK:
                 return;
             }
 
-            // Stunde
-            const relX  = e.clientX - gr.left + gs.scrollLeft - TP_EC_W;
-            const startH = Math.max(0, Math.round((relX / TP_HOUR_W) * 4) / 4);
+            // Stunde (kontinuierlich für smooth Preview, 15min Snap beim Drop)
+            const relX  = e.clientX - gr.left + gs.scrollLeft;
+            const startHRaw = Math.max(0, relX / TP_HOUR_W);
+            const startH = Math.round(startHRaw * 4) / 4; // 15min für Drop
+            const startHSmooth = startHRaw; // für Preview-Position
             const dayIdx  = Math.floor(startH / 24);
             const hourOfDay = startH % 24;
 
@@ -5675,7 +5669,7 @@ TECHNOLOGIE-STACK:
             const sc = STATUS_CONFIG[a?.status] || STATUS_CONFIG['KB'];
             const aufwand = a?.aufwand_stunden || 1;
             const barW = Math.max(aufwand * TP_HOUR_W, 40);
-            const barLeft = gr.left + TP_EC_W + startH * TP_HOUR_W - gs.scrollLeft;
+            const barLeft = gr.left + startHSmooth * TP_HOUR_W - gs.scrollLeft;
             const barTop  = gr.top  + HEADER_H + ecIdx * TP_ROW_H + 3;
 
             if (!_drag.previewEl) {
@@ -5749,7 +5743,7 @@ TECHNOLOGIE-STACK:
 
             // Zum Balken scrollen
             const gs2 = document.getElementById('tpGanttScroll');
-            if (gs2) gs2.scrollLeft = Math.max(0, TP_EC_W + tpHoursFromISO(dateISO, hourOfDay) * TP_HOUR_W - gs2.clientWidth / 2);
+            if (gs2) gs2.scrollLeft = Math.max(0, tpHoursFromISO(dateISO, hourOfDay) * TP_HOUR_W - gs2.clientWidth / 2);
 
             // DB speichern
             supabaseClient.rpc('upsert_dispo_einsatz', {
@@ -5831,7 +5825,7 @@ TECHNOLOGIE-STACK:
                     tpDispoMap[auftragId] = { auftrag_id: auftragId, ec_id: _drag.ecId, einsatzdatum: _drag.dateISO, startzeit, endzeit };
                     renderTagesprogramm();
                     const gs = document.getElementById('tpGanttScroll');
-                    if (gs) gs.scrollLeft = Math.max(0, TP_EC_W + tpHoursFromISO(_drag.dateISO, _drag.hour) * TP_HOUR_W - gs.clientWidth / 2);
+                    if (gs) gs.scrollLeft = Math.max(0, tpHoursFromISO(_drag.dateISO, _drag.hour) * TP_HOUR_W - gs.clientWidth / 2);
                     supabaseClient.rpc('upsert_dispo_einsatz', {
                         p_session_token: sessionToken, p_auftrag_id: auftragId,
                         p_ec_id: _drag.ecId, p_einsatzdatum: _drag.dateISO,
@@ -5850,6 +5844,112 @@ TECHNOLOGIE-STACK:
                 }
             };
             document.addEventListener('mouseup', guardedDrop);
+        }
+
+
+        // ============================================================
+        // MA DRAG & DROP (MA zwischen ECs verschieben)
+        // ============================================================
+        let _maDrag = { active: false, maId: null, fromEcId: null, floatEl: null, toEcId: null, dateISO: null };
+
+        function tpPickupMA(event, maId, ecId) {
+            if (event.button !== 0) return;
+            event.preventDefault();
+            event.stopPropagation();
+
+            const ma = tpAllMAs.find(x => x.id === maId);
+            if (!ma) return;
+
+            const el = document.createElement('div');
+            el.style.cssText = 'position:fixed;pointer-events:none;z-index:9999;padding:4px 10px;background:#374151;color:white;border-radius:20px;font-size:11px;font-weight:500;white-space:nowrap;transform:translate(-50%,-50%);box-shadow:0 3px 10px rgba(0,0,0,0.3);';
+            el.textContent = ma.vorname + ' ' + ma.nachname;
+            el.style.left = event.clientX + 'px';
+            el.style.top  = event.clientY + 'px';
+            document.body.appendChild(el);
+
+            _maDrag.active = true;
+            _maDrag.maId = maId;
+            _maDrag.fromEcId = ecId;
+            _maDrag.floatEl = el;
+            _maDrag.toEcId = null;
+            _maDrag.dateISO = null;
+
+            document.addEventListener('mousemove', _maOnMove);
+            document.addEventListener('mouseup',   _maOnDrop);
+        }
+
+        function _maOnMove(e) {
+            if (!_maDrag.active) return;
+            _maDrag.floatEl.style.left = e.clientX + 'px';
+            _maDrag.floatEl.style.top  = e.clientY + 'px';
+
+            // EC-Zeile unter Cursor via elementFromPoint
+            _maDrag.floatEl.style.display = 'none';
+            const el = document.elementFromPoint(e.clientX, e.clientY);
+            _maDrag.floatEl.style.display = '';
+
+            const ecEl = el?.closest('[data-ecid]');
+            _maDrag.toEcId = ecEl ? parseInt(ecEl.dataset.ecid) : null;
+
+            // Datum = aktuell angezeigter Tag
+            _maDrag.dateISO = tpDateISO(tpCurrentDate);
+
+            // Visuelles Highlight der Zielzeile
+            document.querySelectorAll('[data-ecid]').forEach(el => {
+                el.style.outline = String(el.dataset.ecid) === String(_maDrag.toEcId) && _maDrag.toEcId !== _maDrag.fromEcId
+                    ? '2px solid #3b82f6' : '';
+            });
+        }
+
+        async function _maOnDrop(e) {
+            document.removeEventListener('mousemove', _maOnMove);
+            document.removeEventListener('mouseup',   _maOnDrop);
+            if (_maDrag.floatEl) { _maDrag.floatEl.remove(); _maDrag.floatEl = null; }
+            if (!_maDrag.active) return;
+            _maDrag.active = false;
+
+            const toEcId = _maDrag.toEcId;
+            const maId   = _maDrag.maId;
+            const fromEcId = _maDrag.fromEcId;
+            // Gleicher EC oder kein Ziel → nix tun
+            if (!toEcId || toEcId === fromEcId) return;
+
+            // Welches Datum? Heute als Default wenn nicht erkennbar
+            const dateISO = _maDrag.dateISO || tpISOFromHours(TP_DAYS_BACK * 24);
+
+            // Optimistisch: tpAllMAs assigned_ec aktualisieren (nur im RAM, nicht persistent für Standard)
+            // Override in tpTeamOverrides speichern
+            const key = `${toEcId}_${dateISO}`;
+            const fromKey = `${fromEcId}_${dateISO}`;
+
+            // Von altem EC entfernen (falls Override existiert)
+            if (!tpTeamOverrides[fromKey]) {
+                // Kein Override → Default-Team kopieren ohne diesen MA
+                const defaultTeam = tpAllMAs.filter(m => String(m.assigned_ec) === String(fromEcId) && m.id !== maId).map(m => m.id);
+                tpTeamOverrides[fromKey] = defaultTeam;
+            } else {
+                tpTeamOverrides[fromKey] = tpTeamOverrides[fromKey].filter(id => id !== maId);
+            }
+
+            // Zu neuem EC hinzufügen
+            if (!tpTeamOverrides[key]) {
+                const defaultTeam = tpAllMAs.filter(m => String(m.assigned_ec) === String(toEcId)).map(m => m.id);
+                tpTeamOverrides[key] = [...defaultTeam, maId];
+            } else {
+                if (!tpTeamOverrides[key].includes(maId)) tpTeamOverrides[key].push(maId);
+            }
+
+            renderTagesprogramm();
+
+            // DB speichern: delete old + insert new
+            try {
+                await supabaseClient.from('ec_tages_team').delete()
+                    .eq('mitarbeiter_id', maId).eq('datum', dateISO);
+                await supabaseClient.from('ec_tages_team').insert({
+                    ec_id: toEcId, mitarbeiter_id: maId, datum: dateISO,
+                    created_by: currentUser?.id || null
+                });
+            } catch(err) { console.error('MA drag save:', err); }
         }
 
         // Stubs für alte Referenzen
@@ -8949,7 +9049,7 @@ TECHNOLOGIE-STACK:
 
     <!-- Version Check -->
     <div id="versionInfo" style="position: fixed; bottom: 8px; right: 8px; font-size: 10px; color: #999; background: white; padding: 4px 8px; border-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); z-index: 9999;">
-        Stand: 30.04.2026 10:20
+        Stand: 30.04.2026 13:43
     </div>
 
     <!-- Wetter Standorte Modal -->

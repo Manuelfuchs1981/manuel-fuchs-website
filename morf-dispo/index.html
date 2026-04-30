@@ -5278,37 +5278,13 @@ TECHNOLOGIE-STACK:
                     const isToday = day===0;
                     const left = day * 24 * TP_HOUR_W;
                     const dayW = 24 * TP_HOUR_W;
-                    // Nacht-Shading: 00-06 und 20-24 dunkler
-                    const nightL1 = 0;               // 00:00
-                    const nightW1 = 6 * TP_HOUR_W;   // 06:00
-                    const nightL2 = 20 * TP_HOUR_W;  // 20:00
-                    const nightW2 = 4 * TP_HOUR_W;   // 24:00
                     bgGrid += `<div data-date="${iso}"
                             style="position:absolute;left:${left}px;width:${dayW}px;height:100%;
-                            border-left:${wd===1?'2px solid #d1d5db':'1px solid #f0f0f0'};
-                            background:${isToday?'#eff6ff55':isWeekend?'#f9fafb88':'transparent'};
-                        background-image:
-                            repeating-linear-gradient(90deg,
-                                transparent 0px,
-                                transparent 14px,
-                                #f8f8f8 14px, #f8f8f8 15px,
-                                transparent 15px,
-                                transparent 29px,
-                                #f2f2f2 29px, #f2f2f2 30px,
-                                transparent 30px,
-                                transparent 44px,
-                                #f8f8f8 44px, #f8f8f8 45px,
-                                transparent 45px,
-                                transparent 59px,
-                                #e8e8e8 59px, #e8e8e8 60px
-                            );">
-                        <div style="position:absolute;left:${nightL1}px;width:${nightW1}px;height:100%;background:rgba(0,0,0,0.06);pointer-events:none;"></div>
-                        <div style="position:absolute;left:${nightL2}px;width:${nightW2}px;height:100%;background:rgba(0,0,0,0.06);pointer-events:none;"></div>
+                            border-left:1px solid #e5e7eb;">
                     </div>`;
                 }
 
-                rows += `<div style="display:flex;border-top:2px solid #d1d5db;
-                    ${idx%2===1?'background:#f9fafb;':'background:white;'}height:${TP_ROW_H}px;">
+                rows += `<div style="display:flex;border-top:1px solid #e5e7eb;background:white;height:${TP_ROW_H}px;">
                     <div style="width:${TP_EC_W}px;min-width:${TP_EC_W}px;padding:6px 10px;
                         border-right:1px solid var(--border);font-size:12px;font-weight:600;
                         display:flex;flex-direction:column;justify-content:center;
@@ -5319,7 +5295,6 @@ TECHNOLOGIE-STACK:
                         ${bgGrid}
                         ${nowLine}
                         ${bars}
-                        <div style="position:absolute;top:0;left:0;right:0;height:1px;background:#d1d5db;z-index:2;pointer-events:none;"></div>
                     </div>
                 </div>`;
             });
@@ -8974,7 +8949,7 @@ TECHNOLOGIE-STACK:
 
     <!-- Version Check -->
     <div id="versionInfo" style="position: fixed; bottom: 8px; right: 8px; font-size: 10px; color: #999; background: white; padding: 4px 8px; border-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); z-index: 9999;">
-        Stand: 30.04.2026 10:13
+        Stand: 30.04.2026 10:15
     </div>
 
     <!-- Wetter Standorte Modal -->

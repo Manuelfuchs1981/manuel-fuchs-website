@@ -5179,9 +5179,9 @@ TECHNOLOGIE-STACK:
         // Zeitstrahl: Stunden als X-Achse, Start = heute 00:00, 365 Tage vorwärts
         const TP_HOUR_W  = 60;    // px pro Stunde (15min = 15px)
         const TP_EC_W    = 110;   // px EC-Spalte
-        const TP_ROW_H      = 28;   // px Zeilenhöhe
-        const TP_DAYS_BACK  = 30;   // Tage in die Vergangenheit
-        const TP_DAYS_FWD   = 365;  // Tage in die Zukunft
+        const TP_ROW_H      = 28;   // px Zeilenhöhe (für Drag-Kompatibilität)
+        const TP_DAYS_BACK  = 30;
+        const TP_DAYS_FWD   = 365;
         const TP_DAYS       = TP_DAYS_BACK + TP_DAYS_FWD;
         const TP_TOTAL_H    = TP_DAYS * 24;
 
@@ -5257,19 +5257,24 @@ TECHNOLOGIE-STACK:
 
             // EC Zeilen
             tpECs.forEach(ec => {
-                const team = tpAllMAs.filter(m => String(m.assigned_ec) === String(ec.id));
+                const overrideKey = `${ec.id}_${iso}`;
+                const team = tpTeamOverrides[overrideKey]
+                    ? tpAllMAs.filter(m => tpTeamOverrides[overrideKey].includes(m.id))
+                    : tpAllMAs.filter(m => String(m.assigned_ec) === String(ec.id));
 
                 // Linke Spalte: Name
-                html += `<div style="border-bottom:2px solid #d1d5db;border-right:2px solid #d1d5db;
-                    background:white;padding:0.2em 0.6em;display:flex;flex-direction:column;justify-content:center;gap:0.1em;">
+                html += `<div data-ecid="${ec.id}" style="border-bottom:2px solid #d1d5db;border-right:2px solid #d1d5db;
+                    background:white;padding:0.2em 0.6em;display:flex;flex-direction:column;justify-content:center;gap:0.1em;min-height:2.5em;">
                     <div style="font-size:clamp(9px,0.8vw,13px);font-weight:700;color:#111;white-space:nowrap;">
                         ${ec.vorname} ${ec.nachname}
                     </div>
-                    <div style="font-size:clamp(7px,0.6vw,10px);color:#888;white-space:nowrap;">
-                        ${team.map(m => `<span data-maid="${m.id}" data-ecid="${ec.id}"
-                            onmousedown="tpPickupMA(event,${m.id},${ec.id})"
-                            style="cursor:grab;user-select:none;">${m.vorname} ${m.nachname}</span>`)
-                            .join('<span style="color:#ccc;margin:0 0.3em;">|</span>')}
+                    <div style="font-size:clamp(7px,0.6vw,10px);color:#888;white-space:nowrap;min-height:1em;">
+                        ${team.length > 0
+                            ? team.map(m => `<span data-maid="${m.id}" data-ecid="${ec.id}"
+                                onmousedown="tpPickupMA(event,${m.id},${ec.id})"
+                                style="cursor:grab;user-select:none;">${m.vorname} ${m.nachname}</span>`)
+                                .join('<span style="color:#ccc;margin:0 0.3em;">|</span>')
+                            : '<span style="color:#ccc;font-style:italic;">— kein MA —</span>'}
                     </div>
                 </div>`;
 
@@ -5302,7 +5307,7 @@ TECHNOLOGIE-STACK:
                     });
 
                 html += `<div data-ecid="${ec.id}" data-date="${iso}"
-                    style="position:relative;border-bottom:2px solid #d1d5db;overflow:hidden;
+                    style="position:relative;border-bottom:2px solid #d1d5db;overflow:hidden;min-height:2.5em;
                     background-image:${qGridBg},${gridBg};background-size:100% 100%;">
                     ${nowPct ? `<div style="position:absolute;left:${nowPct};top:0;bottom:0;width:1px;background:rgba(220,50,50,0.6);z-index:3;pointer-events:none;"></div>` : ''}
                     ${bars}
@@ -5600,18 +5605,13 @@ TECHNOLOGIE-STACK:
 
         function _tpOnMove(e) {
             if (!_drag.active) return;
-            if (!_tpBarDragMoved) {
-                const dx = e.clientX - (_drag.startX || e.clientX);
-                const dy = e.clientY - (_drag.startY || e.clientY);
-                if (Math.sqrt(dx*dx + dy*dy) > 4) _tpBarDragMoved = true;
-                else return; // noch kein echter Drag
-            }
+            _tpBarDragMoved = Math.hypot(e.clientX - (_drag.startX||e.clientX), e.clientY - (_drag.startY||e.clientY)) > 4;
 
             // Float folgt Maus
             _drag.floatEl.style.left = e.clientX + 'px';
             _drag.floatEl.style.top  = e.clientY + 'px';
 
-            // Gantt-Bereich prüfen
+            // Gantt-Bereich
             const gs = document.getElementById('tpGanttScroll');
             if (!gs) return;
             const gr = gs.getBoundingClientRect();
@@ -5619,82 +5619,59 @@ TECHNOLOGIE-STACK:
             const inGantt = e.clientX >= gr.left && e.clientX <= gr.right &&
                             e.clientY >= gr.top  && e.clientY <= gr.bottom;
 
-            // Auftragsliste rot wenn Drag drüber
+            // Auftragsliste rot?
             const listEl2 = document.getElementById('tpAuftragListe');
             const listRect2 = listEl2?.getBoundingClientRect();
             const overList2 = listRect2 && e.clientX >= listRect2.left && e.clientX <= listRect2.right &&
-                              e.clientY >= listRect2.top && e.clientY <= listRect2.bottom;
+                              e.clientY >= listRect2.top  && e.clientY <= listRect2.bottom;
             if (listEl2) listEl2.style.background = overList2 ? '#fee2e2' : '';
+            if (overList2) { _drag.ecId = null; _drag.dateISO = null; if (_drag.previewEl) _drag.previewEl.style.display='none'; return; }
 
-            // Über Liste: Drop-Ziel löschen
-            if (overList2) {
-                _drag.ecId = null;
-                _drag.dateISO = null;
-                if (_drag.previewEl) _drag.previewEl.style.display = 'none';
-                return;
-            }
+            if (!inGantt) { _drag.ecId = null; _drag.dateISO = null; if (_drag.previewEl) _drag.previewEl.style.display='none'; return; }
 
-            if (!inGantt) {
-                _drag.ecId = null;
-                _drag.dateISO = null;
-                if (_drag.previewEl) _drag.previewEl.style.display = 'none';
-                return;
-            }
+            // EC via elementFromPoint
+            _drag.floatEl.style.display = 'none';
+            const dropEl = document.elementFromPoint(e.clientX, e.clientY);
+            _drag.floatEl.style.display = '';
+            const ecEl = dropEl?.closest('[data-ecid]');
+            if (!ecEl) { _drag.ecId = null; if (_drag.previewEl) _drag.previewEl.style.display='none'; return; }
+            _drag.ecId    = parseInt(ecEl.dataset.ecid);
+            _drag.dateISO = tpDateISO(tpCurrentDate);
 
-            // EC-Zeile
-            const HEADER_H = 18; // nur Stunden-Zeile im Scroll-Container
-            const relY  = e.clientY - gr.top;
-            const ecIdx = Math.floor((relY - HEADER_H) / TP_ROW_H);
-            if (ecIdx < 0 || ecIdx >= tpECs.length) {
-                _drag.ecId = null;
-                if (_drag.previewEl) _drag.previewEl.style.display = 'none';
-                return;
-            }
-
-            // Stunde (kontinuierlich für smooth Preview, 15min Snap beim Drop)
-            const relX  = e.clientX - gr.left + gs.scrollLeft;
-            const startHRaw = Math.max(0, relX / TP_HOUR_W);
-            const startH = Math.round(startHRaw * 4) / 4; // 15min für Drop
-            const startHSmooth = startHRaw; // für Preview-Position
-            const dayIdx  = Math.floor(startH / 24);
-            const hourOfDay = startH % 24;
-
-            // Speichern
-            _drag.ecId    = tpECs[ecIdx].id;
-            _drag.dateISO = tpISOFromHours(dayIdx * 24);
-            _drag.hour    = hourOfDay;
+            // Stunde aus X-Position in % der Gantt-Breite
+            const relXPct = (e.clientX - gr.left) / gr.width;
+            const startHRaw = Math.max(0, Math.min(23.99, relXPct * 24));
+            const startH = Math.round(startHRaw * 4) / 4; // 15min snap
+            _drag.hour = startH % 24;
 
             // Preview-Balken
             const a  = tpAllAuftraege.find(x => x.id === _drag.auftragId);
             const sc = STATUS_CONFIG[a?.status] || STATUS_CONFIG['KB'];
             const aufwand = a?.aufwand_stunden || 1;
-            const barW = Math.max(aufwand * TP_HOUR_W, 40);
-            const barLeft = gr.left + startHSmooth * TP_HOUR_W - gs.scrollLeft;
-            const barTop  = gr.top  + HEADER_H + ecIdx * TP_ROW_H + 3;
+            const ecRect = ecEl.getBoundingClientRect();
+            const barLeftPx = gr.left + relXPct * gr.width;
+            const barWidthPx = (aufwand / 24) * gr.width;
+            const barTop = ecRect.top + 3;
+            const barH   = ecRect.height - 6;
 
             if (!_drag.previewEl) {
                 const p = document.createElement('div');
-                p.style.cssText = [
-                    'position:fixed', 'pointer-events:none', 'z-index:9998',
-                    'border-radius:5px', 'border:2px dashed',
-                    'display:flex', 'align-items:center',
-                    'padding:0 4px', 'font-size:9px', 'font-weight:600',
-                    'white-space:nowrap', 'overflow:hidden'
-                ].join(';');
+                p.style.cssText = 'position:fixed;pointer-events:none;z-index:9998;border-radius:4px;border:2px dashed;display:flex;align-items:center;padding:0 4px;font-size:9px;font-weight:600;white-space:nowrap;overflow:hidden;';
                 document.body.appendChild(p);
                 _drag.previewEl = p;
             }
             const p = _drag.previewEl;
             p.style.display  = 'flex';
-            p.style.left     = barLeft + 'px';
-            p.style.top      = barTop  + 'px';
-            p.style.width    = barW + 'px';
-            p.style.height   = (TP_ROW_H - 5) + 'px';
+            p.style.left     = barLeftPx + 'px';
+            p.style.top      = barTop + 'px';
+            p.style.width    = Math.max(barWidthPx, 30) + 'px';
+            p.style.height   = Math.max(barH, 10) + 'px';
             p.style.background   = sc.color + '22';
             p.style.borderColor  = sc.color;
             p.style.color        = sc.color;
             p.textContent = aufwand + 'h';
         }
+
 
         async function _tpOnDrop(e) {
             document.removeEventListener('mousemove', _tpOnMove);
@@ -5915,7 +5892,7 @@ TECHNOLOGIE-STACK:
             if (!toEcId || toEcId === fromEcId) return;
 
             // Welches Datum? Heute als Default wenn nicht erkennbar
-            const dateISO = _maDrag.dateISO || tpISOFromHours(TP_DAYS_BACK * 24);
+            const dateISO = _maDrag.dateISO || tpDateISO(tpCurrentDate);
 
             // Optimistisch: tpAllMAs assigned_ec aktualisieren (nur im RAM, nicht persistent für Standard)
             // Override in tpTeamOverrides speichern
@@ -9049,7 +9026,7 @@ TECHNOLOGIE-STACK:
 
     <!-- Version Check -->
     <div id="versionInfo" style="position: fixed; bottom: 8px; right: 8px; font-size: 10px; color: #999; background: white; padding: 4px 8px; border-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); z-index: 9999;">
-        Stand: 30.04.2026 13:43
+        Stand: 30.04.2026 13:55
     </div>
 
     <!-- Wetter Standorte Modal -->

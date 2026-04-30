@@ -2213,7 +2213,7 @@ TECHNOLOGIE-STACK:
                         </div>
                         <span style="font-size:12px; color:var(--text-gray);">Auftrag auf gewünschten Tag ziehen · 12 Monate vorwärts scrollbar</span>
                     </div>
-                    <div style="overflow-x:auto; overflow-y:visible; cursor:grab;" id="tpGanttScroll"
+                    <div style="overflow-x:auto; overflow-y:auto; cursor:grab;" id="tpGanttScroll"
                         onmousedown="tpScrollStart(event)" onmousemove="tpScrollMove(event);tpPreviewMove(event);" onmouseup="tpScrollEnd()" onmouseleave="tpScrollEnd();tpPreviewHide();" ondragleave="tpPreviewHide()" style="position:relative;">
                         <div id="tpPlanungsleiste" style="min-width:1540px;"></div>
 
@@ -5286,12 +5286,12 @@ TECHNOLOGIE-STACK:
 
                 rows += `<div style="display:flex;background:white;height:${TP_ROW_H}px;border-bottom:1px solid #e5e7eb;">
                     <div style="width:${TP_EC_W}px;min-width:${TP_EC_W}px;padding:6px 10px;
-                        border-right:1px solid var(--border);font-size:12px;font-weight:600;
-                        display:flex;flex-direction:column;justify-content:center;
-                        position:sticky;left:0;z-index:3;background:inherit;">
+                        border-right:1px solid #e5e7eb;font-size:12px;font-weight:600;
+                        display:flex;align-items:center;
+                        position:sticky;left:0;z-index:5;background:white;box-shadow:2px 0 4px rgba(0,0,0,0.04);">
                         <span>${ec.vorname} ${ec.nachname}</span>
                     </div>
-                    <div data-ecid="${ec.id}" style="position:relative;width:${totalW}px;height:${TP_ROW_H}px;overflow:visible;flex-shrink:0;">
+                    <div data-ecid="${ec.id}" style="position:relative;width:${totalW}px;height:${TP_ROW_H}px;overflow:hidden;flex-shrink:0;">
                         ${bgGrid}
                         ${nowLine}
                         ${bars}
@@ -5303,7 +5303,7 @@ TECHNOLOGIE-STACK:
                 <div style="display:flex;position:sticky;top:0;z-index:10;background:#dde0e5;border-bottom:2px solid #aaa;">
                     <div style="width:${TP_EC_W}px;min-width:${TP_EC_W}px;padding:6px 10px;font-size:11px;
                         font-weight:700;text-transform:uppercase;color:var(--text-gray);
-                        border-right:1px solid var(--border);position:sticky;left:0;z-index:11;background:#dde0e5;">EC</div>
+                        border-right:1px solid #ccc;position:sticky;left:0;z-index:11;background:#dde0e5;box-shadow:2px 0 4px rgba(0,0,0,0.04);">EC</div>
                     <div style="position:relative;width:${totalW}px;flex-shrink:0;">
                         <div style="position:relative;height:14px;background:#c8cdd4;border-bottom:1px solid #aaa;">${hMonth}</div>
                         <div style="position:relative;height:20px;background:#dde0e5;border-bottom:1px solid #bbb;">${hDay}</div>
@@ -8949,7 +8949,7 @@ TECHNOLOGIE-STACK:
 
     <!-- Version Check -->
     <div id="versionInfo" style="position: fixed; bottom: 8px; right: 8px; font-size: 10px; color: #999; background: white; padding: 4px 8px; border-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); z-index: 9999;">
-        Stand: 30.04.2026 10:17
+        Stand: 30.04.2026 10:20
     </div>
 
     <!-- Wetter Standorte Modal -->

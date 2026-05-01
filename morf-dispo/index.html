@@ -6008,6 +6008,7 @@ TECHNOLOGIE-STACK:
         let _ecGrp = { active: false, fromEcId: null, floatEl: null, toEcId: null };
 
         function tpPickupEC(event, ecId) {
+            console.log("tpPickupEC", ecId);
             if (event.button !== 0) return;
             event.preventDefault();
             event.stopPropagation();
@@ -9280,7 +9281,7 @@ TECHNOLOGIE-STACK:
 
     <!-- Version Check -->
     <div id="versionInfo" style="position: fixed; bottom: 8px; right: 8px; font-size: 10px; color: #999; background: white; padding: 4px 8px; border-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); z-index: 9999;">
-        Stand: 01.05.2026 08:50
+        Stand: 01.05.2026 08:53
     </div>
 
     <!-- Wetter Standorte Modal -->

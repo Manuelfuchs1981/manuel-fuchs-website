@@ -5006,7 +5006,8 @@ TECHNOLOGIE-STACK:
         tpCurrentDate.setHours(0,0,0,0);
         let tpAllAuftraege = [];
         let tpAllMAs = [];       // alle aktiven MA (nicht EC)
-        let tpTeamOverrides = {}; // { 'ecId_datum': [mitarbeiter_id, ...] }
+        let tpTeamOverrides = {};
+        let tpEcGruppen = {}; // { ecId_datum: partnerEcId } // { 'ecId_datum': [mitarbeiter_id, ...] }
         let tpDispoMap = {}; // auftrag_id -> dispo
         let tpECs = [];
         let tpDragAuftragId = null;
@@ -5091,12 +5092,13 @@ TECHNOLOGIE-STACK:
             const dateEl = document.getElementById('tpSelectedDate');
             if (dateEl && !dateEl.value) dateEl.value = new Date().toISOString().slice(0,10);
             try {
-                const [auftraegeRes, dispoRes, ecRes, maRes, teamRes] = await Promise.all([
+                const [auftraegeRes, dispoRes, ecRes, maRes, teamRes, gruppenRes] = await Promise.all([
                     supabaseClient.from('auftraege').select('*, verantwortlicher:system_users!verantwortlicher_id(name)').order('einsatzdatum'),
                     supabaseClient.from('dispo_einsaetze').select('*, ec:mitarbeiter!ec_id(vorname, nachname), partner_ec:mitarbeiter!partner_ec_id(vorname, nachname)'),
                     supabaseClient.from('v_mitarbeiter_aktiv').select('id, vorname, nachname').eq('funktion', 'EC').eq('aktiv', true).order('nachname'),
                     supabaseClient.from('v_mitarbeiter_aktiv').select('id, vorname, nachname, assigned_ec').eq('aktiv', true).neq('funktion', 'EC').order('nachname'),
-                    supabaseClient.from('ec_tages_team').select('*')
+                    supabaseClient.from('ec_tages_team').select('*'),
+                    supabaseClient.from('ec_tages_gruppe').select('*')
                 ]);
                 tpAllAuftraege = auftraegeRes.data || [];
                 tpECs = ecRes.data || [];
@@ -5109,6 +5111,11 @@ TECHNOLOGIE-STACK:
                     const key = `${t.ec_id}_${t.datum}`;
                     if (!tpTeamOverrides[key]) tpTeamOverrides[key] = [];
                     tpTeamOverrides[key].push(t.mitarbeiter_id);
+                });
+                tpEcGruppen = {};
+                (gruppenRes.data || []).forEach(g => {
+                    tpEcGruppen[`${g.ec1_id}_${g.datum}`] = g.ec2_id;
+                    tpEcGruppen[`${g.ec2_id}_${g.datum}`] = g.ec1_id;
                 });
                 renderTagesprogramm();
             } catch (err) {
@@ -5303,12 +5310,22 @@ TECHNOLOGIE-STACK:
 
                 // Namen-Spalte
                 html += `<div data-ecid="${ec.id}" style="border-bottom:2px solid #d1d5db;border-right:2px solid #d1d5db;
-                    background:white;padding:0.2em 0.6em;display:flex;flex-direction:column;justify-content:center;gap:0.1em;min-height:2.5em;">
-                    <div onmousedown="tpPickupEC(event,${ec.id})"
-                        style="font-size:clamp(9px,0.8vw,13px);font-weight:700;color:#111;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:grab;user-select:none;">
-                        ${ec.vorname} ${ec.nachname}
+                    background:white;padding:0.2em 0.6em;display:flex;flex-direction:column;justify-content:center;gap:0.1em;min-height:2.5em;
+                    container-type:inline-size;container-name:nameCol;">
+                    <div style="display:flex;align-items:center;gap:4px;">
+                        <div onmousedown="tpPickupEC(event,${ec.id})"
+                            style="font-size:${tpEcGruppen[`${ec.id}_${tpDateISO(tpCurrentDate)}`]?'clamp(8px,3.5cqi,13px)':'clamp(9px,4.5cqi,15px)'};font-weight:700;color:#111;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:grab;user-select:none;flex:1;">
+                            ${ec.vorname} ${ec.nachname}${(() => {
+                                const iso2 = tpDateISO(tpCurrentDate);
+                                const pid = tpEcGruppen[`${ec.id}_${iso2}`];
+                                if (!pid) return '';
+                                const p = tpECs.find(x => x.id === pid);
+                                return p ? ` <span style="color:#111;font-weight:700;">/ ${p.vorname} ${p.nachname}</span>` : '';
+                            })()}
+                        </div>
+
                     </div>
-                    <div style="font-size:clamp(7px,0.6vw,10px);color:#888;white-space:nowrap;overflow:hidden;min-height:1em;">
+                    <div style="font-size:clamp(8px,3cqi,12px);color:#888;white-space:nowrap;overflow:hidden;min-height:1em;">
                         ${team.length > 0
                             ? team.map(m => `<span data-maid="${m.id}" data-ecid="${ec.id}"
                                 onmousedown="tpPickupMA(event,${m.id},${ec.id})"
@@ -5986,33 +6003,108 @@ TECHNOLOGIE-STACK:
 
 
         // ============================================================
-        // EC DRAG & DROP (EC mit anderem EC koppeln)
+        // EC GRUPPE DRAG & DROP
         // ============================================================
-        let _ecDrag = { active: false, fromEcId: null, floatEl: null, toEcId: null };
+        let _ecGrp = { active: false, fromEcId: null, floatEl: null, toEcId: null };
 
         function tpPickupEC(event, ecId) {
             if (event.button !== 0) return;
             event.preventDefault();
             event.stopPropagation();
-
             const ec = tpECs.find(x => x.id === ecId);
             if (!ec) return;
-
             const el = document.createElement('div');
             el.style.cssText = 'position:fixed;pointer-events:none;z-index:9999;padding:4px 12px;background:#1d4ed8;color:white;border-radius:20px;font-size:11px;font-weight:700;white-space:nowrap;transform:translate(-50%,-50%);box-shadow:0 3px 10px rgba(0,0,0,0.3);';
             el.textContent = ec.vorname + ' ' + ec.nachname;
             el.style.left = event.clientX + 'px';
             el.style.top  = event.clientY + 'px';
             document.body.appendChild(el);
-
-            _ecDrag.active = true;
-            _ecDrag.fromEcId = ecId;
-            _ecDrag.floatEl = el;
-            _ecDrag.toEcId = null;
-
-            document.addEventListener('mousemove', _ecOnMove);
-            document.addEventListener('mouseup',   _ecOnDrop);
+            _ecGrp = { active: true, fromEcId: ecId, floatEl: el, toEcId: null, hasMoved: false };
+            document.addEventListener('mousemove', _ecGrpMove);
+            document.addEventListener('mouseup',   _ecGrpDrop);
         }
+
+        function _ecGrpMove(e) {
+            if (!_ecGrp.active) return;
+            _ecGrp.floatEl.style.left = e.clientX + 'px';
+            _ecGrp.floatEl.style.top  = e.clientY + 'px';
+            _ecGrp.floatEl.style.display = 'none';
+            const el = document.elementFromPoint(e.clientX, e.clientY);
+            _ecGrp.floatEl.style.display = '';
+            const ecEl = el?.closest('[data-ecid]');
+            const tid = ecEl ? parseInt(ecEl.dataset.ecid) : null;
+            _ecGrp.toEcId = (tid && tid !== _ecGrp.fromEcId) ? tid : null;
+            document.querySelectorAll('[data-ecid]').forEach(x => {
+                x.style.outline = String(x.dataset.ecid) === String(_ecGrp.toEcId) ? '2px solid #1d4ed8' : '';
+            });
+        }
+
+        async function _ecGrpDrop(e) {
+            document.removeEventListener('mousemove', _ecGrpMove);
+            document.removeEventListener('mouseup',   _ecGrpDrop);
+            if (_ecGrp.floatEl) { _ecGrp.floatEl.remove(); _ecGrp.floatEl = null; }
+            document.querySelectorAll('[data-ecid]').forEach(x => x.style.outline = '');
+            if (!_ecGrp.active) return;
+            _ecGrp.active = false;
+            // Auf sich selbst oder ausserhalb losgelassen → Gruppe auflösen
+            if (!_ecGrp.toEcId || _ecGrp.toEcId === _ecGrp.fromEcId) {
+                tpEcGruppeAufloesen(_ecGrp.fromEcId);
+                return;
+            }
+            _ecGrp.active = false;
+
+            const ec1 = _ecGrp.fromEcId;
+            const ec2 = _ecGrp.toEcId;
+            const iso = tpDateISO(tpCurrentDate);
+
+            // Lokal: alte Kopplungen beider ECs aufräumen
+            Object.keys(tpEcGruppen).forEach(k => {
+                if (k.endsWith('_'+iso)) {
+                    const eid = parseInt(k.split('_')[0]);
+                    if (eid === ec1 || eid === ec2 || tpEcGruppen[k] === ec1 || tpEcGruppen[k] === ec2) {
+                        delete tpEcGruppen[k];
+                    }
+                }
+            });
+            tpEcGruppen[`${ec1}_${iso}`] = ec2;
+            tpEcGruppen[`${ec2}_${iso}`] = ec1;
+            renderTagesprogramm();
+
+            // DB: alle bestehenden Kopplungen von ec1 UND ec2 auflösen, dann neu
+            try {
+                // Alle Partner von ec1 und ec2 auch lokal entkoppeln
+                Object.keys(tpEcGruppen).forEach(k => {
+                    if (k.endsWith('_'+iso)) {
+                        const eid = parseInt(k.split('_')[0]);
+                        if (eid === ec1 || eid === ec2 || tpEcGruppen[k] === ec1 || tpEcGruppen[k] === ec2) {
+                            delete tpEcGruppen[k];
+                        }
+                    }
+                });
+                tpEcGruppen[`${ec1}_${iso}`] = ec2;
+                tpEcGruppen[`${ec2}_${iso}`] = ec1;
+
+                await supabaseClient.from('ec_tages_gruppe')
+                    .delete()
+                    .eq('datum', iso)
+                    .or(`ec1_id.eq.${ec1},ec2_id.eq.${ec1},ec1_id.eq.${ec2},ec2_id.eq.${ec2}`);
+                await supabaseClient.from('ec_tages_gruppe')
+                    .insert({ ec1_id: ec1, ec2_id: ec2, datum: iso });
+            } catch(err) { console.error('EC Gruppe:', err); }
+        }
+
+        function tpEcGruppeAufloesen(ecId) {
+            const iso = tpDateISO(tpCurrentDate);
+            const partnerId = tpEcGruppen[`${ecId}_${iso}`];
+            console.log('Auflösen:', ecId, iso, partnerId, JSON.stringify(tpEcGruppen));
+            if (!partnerId) return;
+            delete tpEcGruppen[`${ecId}_${iso}`];
+            delete tpEcGruppen[`${partnerId}_${iso}`];
+            renderTagesprogramm();
+            supabaseClient.from('ec_tages_gruppe')
+                .delete().or(`ec1_id.eq.${ecId},ec2_id.eq.${ecId}`).eq('datum', iso);
+        }
+
 
         function _ecOnMove(e) {
             if (!_ecDrag.active) return;
@@ -9189,7 +9281,7 @@ TECHNOLOGIE-STACK:
 
     <!-- Version Check -->
     <div id="versionInfo" style="position: fixed; bottom: 8px; right: 8px; font-size: 10px; color: #999; background: white; padding: 4px 8px; border-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); z-index: 9999;">
-        Stand: 01.05.2026 08:17
+        Stand: 01.05.2026 08:47
     </div>
 
     <!-- Wetter Standorte Modal -->

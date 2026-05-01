@@ -2207,17 +2207,36 @@ TECHNOLOGIE-STACK:
                 <!-- UNTEN: Gantt Planungsleiste -->
                 <div class="data-card" style="overflow:hidden;">
                     <div style="padding:10px 16px; border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
-                        <div style="display:flex;align-items:center;gap:8px;flex:1;">
-                            <strong style="font-size:14px;cursor:pointer;" onclick="document.getElementById('tpDatePicker').showPicker?.() || document.getElementById('tpDatePicker').click()">📅 Planung</strong>
+                        <div style="display:flex;align-items:center;justify-content:space-between;width:100%;">
+                            <!-- Links: Titel -->
+                            <strong style="font-size:14px;cursor:pointer;flex-shrink:0;"
+                                onclick="document.getElementById('tpDatePicker').showPicker?.() || document.getElementById('tpDatePicker').click()">📅 Planung</strong>
                             <input type="date" id="tpDatePicker" onchange="tpGoDate(this.value)"
                                 style="position:absolute;opacity:0;width:0;height:0;pointer-events:none;">
-                            <button class="btn btn-secondary" onclick="tpGoToday()" style="padding:4px 10px; font-size:13px;">Heute</button>
-                            <button class="btn btn-secondary" onclick="tpNavDate(-1)" style="padding:4px 10px; font-size:16px;">‹</button>
-                            <span id="tpDateLabel" style="font-size:13px;font-weight:600;min-width:280px;text-align:center;"></span>
-                            <button class="btn btn-secondary" onclick="tpNavDate(1)" style="padding:4px 10px; font-size:16px;">›</button>
-                            <span style="flex:1;"></span>
+                            <!-- Mitte: Navigation wie Outlook -->
+                            <div style="display:flex;align-items:center;gap:4px;">
+                                <!-- View Switcher -->
+                                <div style="display:flex;border:1px solid #d1d5db;border-radius:4px;overflow:hidden;margin-right:4px;">
+                                    <button id="tpView1" onclick="tpSetView(1)"
+                                        style="padding:3px 10px;font-size:11px;border:none;border-right:1px solid #d1d5db;cursor:pointer;">1 Tag</button>
+                                    <button id="tpView3" onclick="tpSetView(3)"
+                                        style="padding:3px 10px;font-size:11px;border:none;border-right:1px solid #d1d5db;cursor:pointer;">3 Tage</button>
+                                    <button id="tpView7" onclick="tpSetView(7)"
+                                        style="padding:3px 10px;font-size:11px;border:none;cursor:pointer;">7 Tage</button>
+                                </div>
+                                <button onclick="tpGoToday()"
+                                    style="padding:3px 12px;font-size:12px;border:1px solid #d1d5db;border-radius:4px;background:white;cursor:pointer;color:#374151;">Heute</button>
+                                <div style="display:flex;border:1px solid #d1d5db;border-radius:4px;overflow:hidden;">
+                                    <button onclick="tpNavDate(-1)"
+                                        style="padding:3px 8px;font-size:13px;border:none;border-right:1px solid #d1d5db;background:white;cursor:pointer;color:#374151;line-height:1;">‹</button>
+                                    <button onclick="tpNavDate(1)"
+                                        style="padding:3px 8px;font-size:13px;border:none;background:white;cursor:pointer;color:#374151;line-height:1;">›</button>
+                                </div>
+                                <span id="tpDateLabel" style="font-size:13px;font-weight:600;color:#111;margin-left:4px;"></span>
+                            </div>
+                            <!-- Rechts: Papierkorb -->
                             <button onclick="tpResetAlleDispos()" title="Planung leeren"
-                                style="background:none;border:none;cursor:pointer;font-size:16px;color:#ef4444;padding:4px 6px;line-height:1;">🗑</button>
+                                style="background:none;border:none;cursor:pointer;font-size:14px;color:#ef4444;padding:2px 4px;">🗑</button>
                         </div>
                     </div>
                     <div id="tpGanttWrap" style="border:1px solid #e5e7eb;overflow:hidden;"></div>
@@ -4982,7 +5001,8 @@ TECHNOLOGIE-STACK:
         // ============================================
         // TAGESPROGRAMM
         // ============================================
-        let tpCurrentDate = new Date(); // aktuell angezeigter Tag
+        let tpCurrentDate = new Date();
+        let tpViewDays = 1; // 1, 3 oder 7 // aktuell angezeigter Tag
         tpCurrentDate.setHours(0,0,0,0);
         let tpAllAuftraege = [];
         let tpAllMAs = [];       // alle aktiven MA (nicht EC)
@@ -5026,8 +5046,18 @@ TECHNOLOGIE-STACK:
             tpCurrentDate = new Date(); tpCurrentDate.setHours(0,0,0,0);
             renderTagesprogramm();
         }
+        function tpSetView(days) {
+            tpViewDays = days;
+            // Aktiven Button markieren
+            [1,3,7].forEach(d => {
+                const btn = document.getElementById('tpView'+d);
+                if (btn) btn.style.background = d===days ? '#374151' : 'white';
+                if (btn) btn.style.color = d===days ? 'white' : '#374151';
+            });
+            renderTagesprogramm();
+        }
         function tpNavDate(dir) {
-            tpCurrentDate.setDate(tpCurrentDate.getDate() + dir);
+            tpCurrentDate.setDate(tpCurrentDate.getDate() + dir * tpViewDays);
             renderTagesprogramm();
         }
         function tpDateISO(d) {
@@ -5063,7 +5093,7 @@ TECHNOLOGIE-STACK:
             try {
                 const [auftraegeRes, dispoRes, ecRes, maRes, teamRes] = await Promise.all([
                     supabaseClient.from('auftraege').select('*, verantwortlicher:system_users!verantwortlicher_id(name)').order('einsatzdatum'),
-                    supabaseClient.from('dispo_einsaetze').select('*, ec:mitarbeiter!ec_id(vorname, nachname)'),
+                    supabaseClient.from('dispo_einsaetze').select('*, ec:mitarbeiter!ec_id(vorname, nachname), partner_ec:mitarbeiter!partner_ec_id(vorname, nachname)'),
                     supabaseClient.from('v_mitarbeiter_aktiv').select('id, vorname, nachname').eq('funktion', 'EC').eq('aktiv', true).order('nachname'),
                     supabaseClient.from('v_mitarbeiter_aktiv').select('id, vorname, nachname, assigned_ec').eq('aktiv', true).neq('funktion', 'EC').order('nachname'),
                     supabaseClient.from('ec_tages_team').select('*')
@@ -5209,67 +5239,76 @@ TECHNOLOGIE-STACK:
             const wrap = document.getElementById('tpGanttWrap');
             if (!wrap) return;
 
-            const iso = tpDateISO(tpCurrentDate);
+            // Tage berechnen
+            const days = [];
+            for (let i = 0; i < tpViewDays; i++) {
+                const d = new Date(tpCurrentDate);
+                d.setDate(d.getDate() + i);
+                days.push(d);
+            }
 
             // Datum-Label
             const lbl = document.getElementById('tpDateLabel');
-            if (lbl) lbl.textContent = tpDateLabel(tpCurrentDate);
-
-            // Now-Linie %
-            const now = new Date();
-            const todayISO = tpDateISO(now);
-            const nowPct = iso === todayISO
-                ? ((now.getHours() + now.getMinutes()/60) / 24 * 100).toFixed(3) + '%'
-                : null;
-
-            // Stunden-Grid als Hintergrund (CSS)
-            const gridBg = `repeating-linear-gradient(90deg,
-                transparent 0%,
-                transparent calc(${(100/24).toFixed(4)}% - 1px),
-                #e0e0e0 calc(${(100/24).toFixed(4)}% - 1px),
-                #e0e0e0 ${(100/24).toFixed(4)}%)`;
-
-            const qGridBg = `repeating-linear-gradient(90deg,
-                transparent 0%,
-                transparent calc(${(100/96).toFixed(4)}% - 0.5px),
-                #f0f0f0 calc(${(100/96).toFixed(4)}% - 0.5px),
-                #f0f0f0 ${(100/96).toFixed(4)}%)`;
-
-            // Grid-Struktur: rows = header + eine pro EC
-            // Spalten: Name (auto) | Timeline (1fr)
-            const ecCount = tpECs.length;
-            const gridRows = 'auto ' + tpECs.map(() => 'auto').join(' ');
-
-            let html = `<div style="display:grid;grid-template-columns:minmax(120px,15%) 1fr;grid-template-rows:${gridRows};border:1px solid #e0e0e0;">`;
-
-            // Header links (leer)
-            html += `<div style="background:#e8e8e8;border-bottom:2px solid #bbb;border-right:2px solid #d1d5db;padding:0.3em 0.6em;font-size:0.7em;color:#999;display:flex;align-items:center;">EC</div>`;
-
-            // Header rechts (Stunden)
-            html += `<div style="position:relative;background:#e8e8e8;border-bottom:2px solid #bbb;overflow:hidden;">`;
-            for (let h = 0; h < 24; h++) {
-                html += `<div style="position:absolute;left:${(h/24*100).toFixed(3)}%;width:${(100/24).toFixed(3)}%;height:100%;
-                    border-left:1px solid #ccc;display:flex;align-items:center;justify-content:center;
-                    font-size:clamp(7px,0.65vw,11px);font-weight:600;color:#555;box-sizing:border-box;">
-                    ${String(h).padStart(2,'0')}:00
-                </div>`;
+            if (lbl) {
+                if (tpViewDays === 1) {
+                    lbl.textContent = tpDateLabel(days[0]);
+                } else {
+                    const first = days[0], last = days[days.length-1];
+                    const months = ['Jan','Feb','Mär','Apr','Mai','Jun','Jul','Aug','Sep','Okt','Nov','Dez'];
+                    lbl.textContent = `${first.getDate()}. ${months[first.getMonth()]} – ${last.getDate()}. ${months[last.getMonth()]} ${last.getFullYear()} · KW ${tpDateLabel(first).split('KW ')[1]}`;
+                }
             }
-            html += `</div>`;
+
+            // Grid Hintergrund
+            const qGridBg = `repeating-linear-gradient(90deg,
+                transparent 0%,transparent calc(${(100/96).toFixed(4)}% - 0.5px),
+                #f0f0f0 calc(${(100/96).toFixed(4)}% - 0.5px),#f0f0f0 ${(100/96).toFixed(4)}%)`;
+            const gridBg = `repeating-linear-gradient(90deg,
+                transparent 0%,transparent calc(${(100/24).toFixed(4)}% - 0.5px),
+                #e0e0e0 calc(${(100/24).toFixed(4)}% - 0.5px),#e0e0e0 ${(100/24).toFixed(4)}%)`;
+
+            // Grid-Template: Name-Spalte + 1 Spalte pro Tag
+            const colTemplate = `minmax(120px,15%) repeat(${tpViewDays}, 1fr)`;
+            let html = `<div style="display:grid;grid-template-columns:${colTemplate};border:1px solid #e0e0e0;">`;
+
+            // Header Zeile
+            html += `<div style="background:#e8e8e8;border-bottom:2px solid #bbb;border-right:2px solid #d1d5db;"></div>`;
+            days.forEach(d => {
+                const isToday = tpDateISO(d) === tpDateISO(new Date());
+                const wd = ['So','Mo','Di','Mi','Do','Fr','Sa'][d.getDay()];
+                const months = ['Jan','Feb','Mär','Apr','Mai','Jun','Jul','Aug','Sep','Okt','Nov','Dez'];
+                html += `<div style="background:${isToday?'#dbeafe':'#e8e8e8'};border-bottom:2px solid #bbb;
+                    border-right:1px solid #d1d5db;padding:2px 0;position:relative;overflow:hidden;">
+                    <div style="position:relative;height:${tpViewDays===1?'1.6em':'calc(clamp(6px,0.5vw,9px) + 6px)'};">
+                        ${Array.from({length:24},(_,h)=>`<div style="position:absolute;left:${(h/24*100).toFixed(2)}%;width:${(100/24).toFixed(2)}%;height:100%;
+                            border-left:1px solid #ccc;display:flex;align-items:flex-end;justify-content:center;
+                            padding-bottom:2px;overflow:hidden;box-sizing:border-box;">
+                            <span style="font-size:clamp(6px,0.5vw,9px);font-weight:600;color:#666;
+                                ${tpViewDays>1?'writing-mode:vertical-rl;transform:rotate(180deg);':''}">
+                                ${String(h).padStart(2,'0')}:00</span></div>`).join('')}
+                    </div>
+                    <div style="text-align:center;font-size:clamp(8px,0.6vw,11px);font-weight:${isToday?'700':'600'};
+                        color:${isToday?'#1d4ed8':'#374151'};padding:1px 0;border-top:1px solid #d1d5db;">
+                        ${wd} ${d.getDate()}. ${months[d.getMonth()]}
+                    </div>
+                </div>`;
+            });
 
             // EC Zeilen
             tpECs.forEach(ec => {
-                const overrideKey = `${ec.id}_${iso}`;
+                const overrideKey = `${ec.id}_${tpDateISO(days[0])}`;
                 const team = tpTeamOverrides[overrideKey]
                     ? tpAllMAs.filter(m => tpTeamOverrides[overrideKey].includes(m.id))
                     : tpAllMAs.filter(m => String(m.assigned_ec) === String(ec.id));
 
-                // Linke Spalte: Name
+                // Namen-Spalte
                 html += `<div data-ecid="${ec.id}" style="border-bottom:2px solid #d1d5db;border-right:2px solid #d1d5db;
                     background:white;padding:0.2em 0.6em;display:flex;flex-direction:column;justify-content:center;gap:0.1em;min-height:2.5em;">
-                    <div style="font-size:clamp(9px,0.8vw,13px);font-weight:700;color:#111;white-space:nowrap;">
+                    <div onmousedown="tpPickupEC(event,${ec.id})"
+                        style="font-size:clamp(9px,0.8vw,13px);font-weight:700;color:#111;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:grab;user-select:none;">
                         ${ec.vorname} ${ec.nachname}
                     </div>
-                    <div style="font-size:clamp(7px,0.6vw,10px);color:#888;white-space:nowrap;min-height:1em;">
+                    <div style="font-size:clamp(7px,0.6vw,10px);color:#888;white-space:nowrap;overflow:hidden;min-height:1em;">
                         ${team.length > 0
                             ? team.map(m => `<span data-maid="${m.id}" data-ecid="${ec.id}"
                                 onmousedown="tpPickupMA(event,${m.id},${ec.id})"
@@ -5279,45 +5318,57 @@ TECHNOLOGIE-STACK:
                     </div>
                 </div>`;
 
-                // Rechte Spalte: Timeline
-                let bars = '';
-                Object.values(tpDispoMap)
-                    .filter(d => String(d.ec_id) === String(ec.id) && d.einsatzdatum === iso)
-                    .forEach(d => {
-                        const a = tpAllAuftraege.find(x => x.id === d.auftrag_id);
-                        if (!a) return;
-                        const sc = STATUS_CONFIG[a.status] || STATUS_CONFIG['KB'];
-                        const ort = (a.einsatzort||'').match(/\d{4}\s+(.+)/)?.[1]?.trim() || '–';
-                        const aufwand = a.aufwand_stunden || 1;
-                        let startH = 7;
-                        if (d.startzeit) { const p = d.startzeit.split(':'); startH = parseInt(p[0]) + parseInt(p[1]||0)/60; }
-                        const leftPct = (startH/24*100).toFixed(3);
-                        const widthPct = Math.max(aufwand/24*100, 0.5).toFixed(3);
-                        bars += `<div onmousedown="tpPickupBar(event,${a.id})"
-                            style="position:absolute;left:${leftPct}%;width:${widthPct}%;top:3px;bottom:3px;
-                                background:${sc.color}22;border:1.5px solid ${sc.color};border-radius:3px;
-                                cursor:grab;overflow:hidden;display:flex;align-items:center;padding:0 0.3em;
-                                box-sizing:border-box;user-select:none;z-index:2;min-width:4px;">
-                            <span style="font-size:clamp(7px,0.6vw,10px);font-weight:700;color:${sc.color};
-                                white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
-                                ${(d.startzeit||'').slice(0,5)}–${(d.endzeit||'').slice(0,5)}
-                                <span style="font-weight:400;color:#555;"> ${a.projektnummer||''} · ${ort}</span>
-                                <span onclick="tpRemoveFromPlan(${a.id})" style="color:#aaa;cursor:pointer;margin-left:0.3em;">✕</span>
-                            </span>
-                        </div>`;
-                    });
+                // Timeline pro Tag
+                days.forEach(d => {
+                    const iso = tpDateISO(d);
+                    const isToday = iso === tpDateISO(new Date());
+                    const nowPct = isToday
+                        ? ((new Date().getHours() + new Date().getMinutes()/60) / 24 * 100).toFixed(3) + '%'
+                        : null;
 
-                html += `<div data-ecid="${ec.id}" data-date="${iso}"
-                    style="position:relative;border-bottom:2px solid #d1d5db;overflow:hidden;min-height:2.5em;
-                    background-image:${qGridBg},${gridBg};background-size:100% 100%;">
-                    ${nowPct ? `<div style="position:absolute;left:${nowPct};top:0;bottom:0;width:1px;background:rgba(220,50,50,0.6);z-index:3;pointer-events:none;"></div>` : ''}
-                    ${bars}
-                </div>`;
+                    let bars = '';
+                    Object.values(tpDispoMap)
+                        .filter(dsp => String(dsp.ec_id) === String(ec.id) && dsp.einsatzdatum === iso)
+                        .forEach(dsp => {
+                            const a = tpAllAuftraege.find(x => x.id === dsp.auftrag_id);
+                            if (!a) return;
+                            const sc = STATUS_CONFIG[a.status] || STATUS_CONFIG['KB'];
+                            const ort = (a.einsatzort||'').match(/\d{4}\s+(.+)/)?.[1]?.trim() || '–';
+                            const aufwand = a.aufwand_stunden || 1;
+                            let startH = 7;
+                            if (dsp.startzeit) { const p = dsp.startzeit.split(':'); startH = parseInt(p[0]) + parseInt(p[1]||0)/60; }
+                            const leftPct = (startH/24*100).toFixed(3);
+                            const widthPct = Math.max(aufwand/24*100, 0.5).toFixed(3);
+                            bars += `<div onmousedown="tpPickupBar(event,${a.id})"
+                                style="position:absolute;left:${leftPct}%;width:${widthPct}%;top:3px;bottom:3px;
+                                    background:${sc.color}22;border:1.5px solid ${sc.color};border-radius:3px;
+                                    cursor:grab;overflow:hidden;display:flex;align-items:center;padding:0 0.3em;
+                                    box-sizing:border-box;user-select:none;z-index:2;min-width:4px;">
+                                <span style="font-size:clamp(7px,0.5vw,9px);font-weight:700;color:${sc.color};
+                                    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+                                    ${(dsp.startzeit||'').slice(0,5)}–${(dsp.endzeit||'').slice(0,5)}
+                                    ${dsp.partner_ec_id ? (() => { const p = tpECs.find(x=>x.id===dsp.partner_ec_id); return p?` <span style="color:${sc.color};opacity:0.7;">/ ${p.vorname} ${p.nachname}</span>`:''; })() : ''}
+                                    <span style="font-weight:400;color:#555;"> ${a.projektnummer||''}</span>
+                                    <span onclick="tpRemoveFromPlan(${a.id})" style="color:#aaa;cursor:pointer;margin-left:0.2em;">✕</span>
+                                </span>
+                            </div>`;
+                        });
+
+                    html += `<div data-ecid="${ec.id}" data-date="${iso}"
+                        style="position:relative;border-bottom:2px solid #d1d5db;border-right:1px solid #d1d5db;
+                        overflow:hidden;min-height:2.5em;
+                        background-image:${qGridBg},${gridBg};">
+                        ${isToday ? `<div style="position:absolute;background:#dbeafe22;left:0;right:0;top:0;bottom:0;pointer-events:none;"></div>` : ''}
+                        ${nowPct ? `<div style="position:absolute;left:${nowPct};top:0;bottom:0;width:1px;background:rgba(220,50,50,0.6);z-index:3;pointer-events:none;"></div>` : ''}
+                        ${bars}
+                    </div>`;
+                });
             });
 
             html += '</div>';
             wrap.innerHTML = html;
         }
+
 
 
 
@@ -5931,6 +5982,114 @@ TECHNOLOGIE-STACK:
                     created_by: currentUser?.id || null
                 });
             } catch(err) { console.error('MA drag save:', err); }
+        }
+
+
+        // ============================================================
+        // EC DRAG & DROP (EC mit anderem EC koppeln)
+        // ============================================================
+        let _ecDrag = { active: false, fromEcId: null, floatEl: null, toEcId: null };
+
+        function tpPickupEC(event, ecId) {
+            if (event.button !== 0) return;
+            event.preventDefault();
+            event.stopPropagation();
+
+            const ec = tpECs.find(x => x.id === ecId);
+            if (!ec) return;
+
+            const el = document.createElement('div');
+            el.style.cssText = 'position:fixed;pointer-events:none;z-index:9999;padding:4px 12px;background:#1d4ed8;color:white;border-radius:20px;font-size:11px;font-weight:700;white-space:nowrap;transform:translate(-50%,-50%);box-shadow:0 3px 10px rgba(0,0,0,0.3);';
+            el.textContent = ec.vorname + ' ' + ec.nachname;
+            el.style.left = event.clientX + 'px';
+            el.style.top  = event.clientY + 'px';
+            document.body.appendChild(el);
+
+            _ecDrag.active = true;
+            _ecDrag.fromEcId = ecId;
+            _ecDrag.floatEl = el;
+            _ecDrag.toEcId = null;
+
+            document.addEventListener('mousemove', _ecOnMove);
+            document.addEventListener('mouseup',   _ecOnDrop);
+        }
+
+        function _ecOnMove(e) {
+            if (!_ecDrag.active) return;
+            _ecDrag.floatEl.style.left = e.clientX + 'px';
+            _ecDrag.floatEl.style.top  = e.clientY + 'px';
+
+            _ecDrag.floatEl.style.display = 'none';
+            const el = document.elementFromPoint(e.clientX, e.clientY);
+            _ecDrag.floatEl.style.display = '';
+
+            const ecEl = el?.closest('[data-ecid]');
+            const targetId = ecEl ? parseInt(ecEl.dataset.ecid) : null;
+            _ecDrag.toEcId = targetId && targetId !== _ecDrag.fromEcId ? targetId : null;
+
+            // Highlight
+            document.querySelectorAll('[data-ecid]').forEach(el => {
+                el.style.outline = String(el.dataset.ecid) === String(_ecDrag.toEcId)
+                    ? '2px solid #1d4ed8' : '';
+            });
+        }
+
+        async function _ecOnDrop(e) {
+            document.removeEventListener('mousemove', _ecOnMove);
+            document.removeEventListener('mouseup',   _ecOnDrop);
+            if (_ecDrag.floatEl) { _ecDrag.floatEl.remove(); _ecDrag.floatEl = null; }
+            document.querySelectorAll('[data-ecid]').forEach(el => el.style.outline = '');
+            if (!_ecDrag.active) return;
+            _ecDrag.active = false;
+            if (!_ecDrag.toEcId) return;
+
+            const fromId = _ecDrag.fromEcId;
+            const toId   = _ecDrag.toEcId;
+            const iso    = tpDateISO(tpCurrentDate);
+
+            // Alle Einsätze des fromEC an diesem Tag
+            const fromDispos = Object.values(tpDispoMap).filter(d =>
+                String(d.ec_id) === String(fromId) && d.einsatzdatum === iso
+            );
+            if (fromDispos.length === 0) return;
+
+            // Pro Einsatz: Duplikat für toEC erstellen
+            for (const d of fromDispos) {
+                const a = tpAllAuftraege.find(x => x.id === d.auftrag_id);
+                if (!a) continue;
+
+                // Lokales Duplikat
+                const newKey = `${d.auftrag_id}_${toId}`;
+                const fakeId = -(d.auftrag_id * 1000 + toId); // temp ID
+                tpDispoMap[fakeId] = {
+                    auftrag_id: d.auftrag_id,
+                    ec_id: toId,
+                    einsatzdatum: iso,
+                    startzeit: d.startzeit,
+                    endzeit: d.endzeit,
+                    partner_ec_id: fromId
+                };
+
+                // partner_ec_id auf Original setzen
+                tpDispoMap[d.auftrag_id] = { ...d, partner_ec_id: toId };
+
+                // DB: Original updaten + Duplikat inserieren
+                try {
+                    await supabaseClient.from('dispo_einsaetze')
+                        .update({ partner_ec_id: toId })
+                        .eq('auftrag_id', d.auftrag_id).eq('ec_id', fromId);
+
+                    await supabaseClient.from('dispo_einsaetze').upsert({
+                        auftrag_id: d.auftrag_id,
+                        ec_id: toId,
+                        einsatzdatum: iso,
+                        startzeit: d.startzeit,
+                        endzeit: d.endzeit,
+                        partner_ec_id: fromId
+                    }, { onConflict: 'auftrag_id,ec_id' });
+                } catch(err) { console.error('EC koppeln:', err); }
+            }
+            renderTagesprogramm();
         }
 
         // Stubs für alte Referenzen
@@ -9030,7 +9189,7 @@ TECHNOLOGIE-STACK:
 
     <!-- Version Check -->
     <div id="versionInfo" style="position: fixed; bottom: 8px; right: 8px; font-size: 10px; color: #999; background: white; padding: 4px 8px; border-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); z-index: 9999;">
-        Stand: 01.05.2026 07:55
+        Stand: 01.05.2026 08:17
     </div>
 
     <!-- Wetter Standorte Modal -->

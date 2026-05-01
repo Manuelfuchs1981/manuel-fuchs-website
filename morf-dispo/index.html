@@ -6033,9 +6033,9 @@ TECHNOLOGIE-STACK:
             _ecGrp.floatEl.style.display = '';
             const ecEl = el?.closest('[data-ecid]');
             const tid = ecEl ? parseInt(ecEl.dataset.ecid) : null;
-            _ecGrp.toEcId = (tid && tid !== _ecGrp.fromEcId) ? tid : null;
+            _ecGrp.toEcId = tid || null;
             document.querySelectorAll('[data-ecid]').forEach(x => {
-                x.style.outline = String(x.dataset.ecid) === String(_ecGrp.toEcId) ? '2px solid #1d4ed8' : '';
+                x.style.outline = (String(x.dataset.ecid) === String(_ecGrp.toEcId) && _ecGrp.toEcId !== _ecGrp.fromEcId) ? '2px solid #1d4ed8' : (String(x.dataset.ecid) === String(_ecGrp.fromEcId) && _ecGrp.toEcId === _ecGrp.fromEcId ? '2px dashed #ef4444' : '');
             });
         }
 
@@ -6044,7 +6044,6 @@ TECHNOLOGIE-STACK:
             document.removeEventListener('mouseup',   _ecGrpDrop);
             if (_ecGrp.floatEl) { _ecGrp.floatEl.remove(); _ecGrp.floatEl = null; }
             document.querySelectorAll('[data-ecid]').forEach(x => x.style.outline = '');
-            console.log('_ecGrpDrop active:', _ecGrp.active, 'from:', _ecGrp.fromEcId, 'to:', _ecGrp.toEcId);
             if (!_ecGrp.active) return;
             _ecGrp.active = false;
             // Auf sich selbst oder ausserhalb losgelassen → Gruppe auflösen
@@ -6097,7 +6096,6 @@ TECHNOLOGIE-STACK:
         function tpEcGruppeAufloesen(ecId) {
             const iso = tpDateISO(tpCurrentDate);
             const partnerId = tpEcGruppen[`${ecId}_${iso}`];
-            console.log('Auflösen:', ecId, iso, partnerId, JSON.stringify(tpEcGruppen));
             if (!partnerId) return;
             delete tpEcGruppen[`${ecId}_${iso}`];
             delete tpEcGruppen[`${partnerId}_${iso}`];
@@ -9282,7 +9280,7 @@ TECHNOLOGIE-STACK:
 
     <!-- Version Check -->
     <div id="versionInfo" style="position: fixed; bottom: 8px; right: 8px; font-size: 10px; color: #999; background: white; padding: 4px 8px; border-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); z-index: 9999;">
-        Stand: 01.05.2026 08:49
+        Stand: 01.05.2026 08:50
     </div>
 
     <!-- Wetter Standorte Modal -->

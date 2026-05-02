@@ -5007,7 +5007,8 @@ TECHNOLOGIE-STACK:
         let tpAllAuftraege = [];
         let tpAllMAs = [];       // alle aktiven MA (nicht EC)
         let tpTeamOverrides = {};
-        let tpEcGruppen = {}; // { ecId_datum: partnerEcId } // { 'ecId_datum': [mitarbeiter_id, ...] }
+        let tpEcGruppen = {};
+        let tpAbwesenheiten = []; // alle Abwesenheiten für Gantt-Anzeige // { ecId_datum: partnerEcId } // { 'ecId_datum': [mitarbeiter_id, ...] }
         let tpDispoMap = {}; // auftrag_id -> dispo
         let tpECs = [];
         let tpDragAuftragId = null;
@@ -5100,6 +5101,10 @@ TECHNOLOGIE-STACK:
                     supabaseClient.from('ec_tages_team').select('*'),
                     supabaseClient.from('ec_tages_gruppe').select('*')
                 ]);
+                // Abwesenheiten separat laden
+                const abwRes = await supabaseClient.from('abwesenheits_perioden')
+                    .select('mitarbeiter_id, typ, von, bis')
+                    .is('deleted_at', null);
                 tpAllAuftraege = auftraegeRes.data || [];
                 tpECs = ecRes.data || [];
                 tpAllMAs = maRes.data || [];
@@ -5112,7 +5117,12 @@ TECHNOLOGIE-STACK:
                     if (!tpTeamOverrides[key]) tpTeamOverrides[key] = [];
                     tpTeamOverrides[key].push(t.mitarbeiter_id);
                 });
+                // Abwesenheiten speichern
+                tpAbwesenheiten = abwRes?.data || [];
+                console.log('Abwesenheiten:', tpAbwesenheiten.length, abwRes?.error?.message);
+
                 tpEcGruppen = {};
+                tpAbwesenheiten = abwRes.data || [];
                 (gruppenRes.data || []).forEach(g => {
                     tpEcGruppen[`${g.ec1_id}_${g.datum}`] = g.ec2_id;
                     tpEcGruppen[`${g.ec2_id}_${g.datum}`] = g.ec1_id;
@@ -5285,18 +5295,18 @@ TECHNOLOGIE-STACK:
                 const wd = ['So','Mo','Di','Mi','Do','Fr','Sa'][d.getDay()];
                 const months = ['Jan','Feb','Mär','Apr','Mai','Jun','Jul','Aug','Sep','Okt','Nov','Dez'];
                 html += `<div style="background:${isToday?'#dbeafe':'#e8e8e8'};border-bottom:2px solid #bbb;
-                    border-right:1px solid #d1d5db;padding:2px 0;position:relative;overflow:hidden;">
-                    <div style="position:relative;height:${tpViewDays===1?'1.6em':'calc(clamp(6px,0.5vw,9px) + 6px)'};">
-                        ${Array.from({length:24},(_,h)=>`<div style="position:absolute;left:${(h/24*100).toFixed(2)}%;width:${(100/24).toFixed(2)}%;height:100%;
-                            border-left:1px solid #ccc;display:flex;align-items:flex-end;justify-content:center;
-                            padding-bottom:2px;overflow:hidden;box-sizing:border-box;">
-                            <span style="font-size:clamp(6px,0.5vw,9px);font-weight:600;color:#666;
-                                ${tpViewDays>1?'writing-mode:vertical-rl;transform:rotate(180deg);':''}">
-                                ${String(h).padStart(2,'0')}:00</span></div>`).join('')}
-                    </div>
-                    <div style="text-align:center;font-size:clamp(8px,0.6vw,11px);font-weight:${isToday?'700':'600'};
-                        color:${isToday?'#1d4ed8':'#374151'};padding:1px 0;border-top:1px solid #d1d5db;">
+                    border-right:1px solid #d1d5db;overflow:hidden;">
+                    ${tpViewDays > 1 ? `<div style="text-align:center;font-size:clamp(8px,0.6vw,11px);
+                        font-weight:${isToday?'700':'600'};color:${isToday?'#1d4ed8':'#374151'};
+                        padding:3px 0;border-bottom:1px solid #d1d5db;">
                         ${wd} ${d.getDate()}. ${months[d.getMonth()]}
+                    </div>` : ''}
+                    <div style="display:flex;">
+                        ${Array.from({length:24},(_,h)=>`<div style="flex:1;border-left:1px solid #ccc;display:flex;align-items:center;justify-content:center;
+                            padding:6px 0;overflow:hidden;box-sizing:border-box;min-width:0;">
+                            <span style="font-size:${tpViewDays===1?'clamp(9px,0.7vw,11px)':tpViewDays===3?'clamp(9px,0.45vw,10px)':'clamp(6px,0.35vw,9px)'};font-weight:600;color:#666;
+                                ${tpViewDays>1?'writing-mode:vertical-rl;transform:rotate(180deg);':''}white-space:nowrap;">
+                                ${String(h).padStart(2,'0')}:00</span></div>`).join('')}
                     </div>
                 </div>`;
             });
@@ -5330,7 +5340,13 @@ TECHNOLOGIE-STACK:
                             ? team.map(m => `<span data-maid="${m.id}" data-ecid="${ec.id}"
                                 onmousedown="tpPickupMA(event,${m.id},${ec.id})"
                                 style="cursor:grab;user-select:none;"
-                            onmousedown="event.stopPropagation();">${m.vorname} ${m.nachname}</span>`)
+                            onmousedown="event.stopPropagation();">${m.vorname} ${m.nachname}${(() => {
+                                const abw = tpGetAbwesenheiten(m.id, iso);
+                                if (!abw.length) return '';
+                                const a = abw[0];
+                                const cfg = ABW_FARBEN[a.typ] || { label: a.typ };
+                                return ` <span style="font-size:0.85em;opacity:0.8;">${cfg.label}</span>`;
+                            })()}</span>`)
                                 .join('<span style="color:#ccc;margin:0 0.3em;">|</span>')
                             : '<span style="color:#ccc;font-style:italic;">— kein MA —</span>'}
                     </div>
@@ -5372,11 +5388,30 @@ TECHNOLOGIE-STACK:
                             </div>`;
                         });
 
-                    html += `<div data-ecid="${ec.id}" data-date="${iso}"
+                    // Abwesenheits-Overlay für diese EC-Gruppe
+                const maIds = team.map(m => m.id);
+                const tagesAbw = (tpAbwesenheiten || []).filter(a =>
+                    !a.mitarbeiter_id && a.von <= iso && a.bis >= iso
+                ); // BF + FT (keine mitarbeiter_id)
+                const maAbw = (tpAbwesenheiten || []).filter(a =>
+                    maIds.includes(a.mitarbeiter_id) && a.von <= iso && a.bis >= iso
+                );
+                const allAbw = [...tagesAbw, ...maAbw];
+                const abwOverlay = allAbw.length ? (() => {
+                    const hauptAbw = tagesAbw[0] || maAbw[0];
+                    const cfg = ABW_FARBEN[hauptAbw.typ] || { bg: '#f3f4f6', border: '#9ca3af', label: hauptAbw.typ };
+                    return `<div style="position:absolute;inset:0;background:${cfg.bg};border-left:3px solid ${cfg.border};
+                        opacity:0.5;pointer-events:none;z-index:1;"></div>
+                        <div style="position:absolute;top:2px;left:6px;font-size:0.7em;color:${cfg.border};
+                        font-weight:600;z-index:2;pointer-events:none;">${cfg.label}${allAbw.length > 1 ? ` +${allAbw.length-1}` : ''}</div>`;
+                })() : '';
+
+                html += `<div data-ecid="${ec.id}" data-date="${iso}"
                         style="position:relative;border-bottom:2px solid #d1d5db;border-right:1px solid #d1d5db;
                         overflow:hidden;min-height:2.5em;
                         background-image:${qGridBg},${gridBg};">
                         ${isToday ? `<div style="position:absolute;background:#dbeafe22;left:0;right:0;top:0;bottom:0;pointer-events:none;"></div>` : ''}
+                        ${abwOverlay}
                         ${nowPct ? `<div style="position:absolute;left:${nowPct};top:0;bottom:0;width:1px;background:rgba(220,50,50,0.6);z-index:3;pointer-events:none;"></div>` : ''}
                         ${bars}
                     </div>`;
@@ -5706,7 +5741,8 @@ TECHNOLOGIE-STACK:
             const ecEl = dropEl?.closest('[data-ecid]');
             if (!ecEl) { _drag.ecId = null; if (_drag.previewEl) _drag.previewEl.style.display='none'; return; }
             _drag.ecId    = parseInt(ecEl.dataset.ecid);
-            _drag.dateISO = tpDateISO(tpCurrentDate);
+            // Datum aus data-date des Ziel-Divs (korrekt bei 3/7 Tage)
+            _drag.dateISO = ecEl.dataset.date || tpDateISO(tpCurrentDate);
 
             // Timeline-Bereich (rechte Spalte) für genaue X-Berechnung
             // Die Timeline ist der [data-ecid] Div der NICHT die Namensspalte ist
@@ -6190,6 +6226,30 @@ TECHNOLOGIE-STACK:
             }
             renderTagesprogramm();
         }
+
+
+        // Abwesenheiten für einen MA an einem bestimmten Datum
+        function tpGetAbwesenheiten(maId, iso) {
+            return tpAbwesenheiten.filter(a =>
+                String(a.mitarbeiter_id) === String(maId) &&
+                a.von <= iso && a.bis >= iso
+            );
+        }
+
+        // Abwesenheiten für ganzen Tag (BF/FT = alle)
+        function tpGetTagesAbwesenheiten(iso) {
+            return tpAbwesenheiten.filter(a =>
+                !a.mitarbeiter_id && a.von <= iso && a.bis >= iso
+            );
+        }
+
+        const ABW_FARBEN = {
+            'UF': { bg: '#fef9c3', border: '#ca8a04', label: '🌴 Ferien' },
+            'KR': { bg: '#fee2e2', border: '#dc2626', label: '🤒 Krank' },
+            'KO': { bg: '#f3e8ff', border: '#9333ea', label: '📋 Kompensation' },
+            'BF': { bg: '#fce7f3', border: '#db2777', label: '🏢 Betriebsferien' },
+            'FT': { bg: '#dbeafe', border: '#2563eb', label: '🎉 Feiertag' },
+        };
 
         // Stubs für alte Referenzen
 
@@ -9288,7 +9348,7 @@ TECHNOLOGIE-STACK:
 
     <!-- Version Check -->
     <div id="versionInfo" style="position: fixed; bottom: 8px; right: 8px; font-size: 10px; color: #999; background: white; padding: 4px 8px; border-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); z-index: 9999;">
-        Stand: 02.05.2026 05:49
+        Stand: 02.05.2026 06:14
     </div>
 
     <!-- Wetter Standorte Modal -->

@@ -5377,7 +5377,7 @@ TECHNOLOGIE-STACK:
                                     ${(dsp.startzeit||'').slice(0,5)}–${(dsp.endzeit||'').slice(0,5)}
                                     ${dsp.partner_ec_id ? (() => { const p = tpECs.find(x=>x.id===dsp.partner_ec_id); return p?` <span style="color:${sc.color};opacity:0.7;">/ ${p.vorname} ${p.nachname}</span>`:''; })() : ''}
                                     <span style="font-weight:400;color:#555;"> ${a.projektnummer||''}</span>
-                                    <span onclick="tpRemoveFromPlan(${a.id})" style="color:#aaa;cursor:pointer;margin-left:0.2em;">✕</span>
+                                    <span onclick="event.stopPropagation();tpRemoveFromPlan(${a.id})" style="color:#aaa;cursor:pointer;margin-left:0.2em;flex-shrink:0;">✕</span>
                                 </span>
                             </div>`;
                         });
@@ -9384,7 +9384,7 @@ TECHNOLOGIE-STACK:
 
     <!-- Version Check -->
     <div id="versionInfo" style="position: fixed; bottom: 8px; right: 8px; font-size: 10px; color: #999; background: white; padding: 4px 8px; border-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); z-index: 9999;">
-        Stand: 02.05.2026 07:21
+        Stand: 02.05.2026 07:24
     </div>
 
     <!-- Wetter Standorte Modal -->

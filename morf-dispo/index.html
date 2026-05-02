@@ -5340,13 +5340,7 @@ TECHNOLOGIE-STACK:
                             ? team.map(m => `<span data-maid="${m.id}" data-ecid="${ec.id}"
                                 onmousedown="tpPickupMA(event,${m.id},${ec.id})"
                                 style="cursor:grab;user-select:none;"
-                            onmousedown="event.stopPropagation();">${m.vorname} ${m.nachname}${(() => {
-                                const abw = tpGetAbwesenheiten(m.id, iso);
-                                if (!abw.length) return '';
-                                const a = abw[0];
-                                const cfg = ABW_FARBEN[a.typ] || { label: a.typ };
-                                return ` <span style="font-size:0.85em;opacity:0.8;">${cfg.label}</span>`;
-                            })()}</span>`)
+                            onmousedown="event.stopPropagation();">${m.vorname} ${m.nachname}</span>`)
                                 .join('<span style="color:#ccc;margin:0 0.3em;">|</span>')
                             : '<span style="color:#ccc;font-style:italic;">— kein MA —</span>'}
                     </div>
@@ -5390,9 +5384,13 @@ TECHNOLOGIE-STACK:
 
                     // Abwesenheits-Overlay für diese EC-Gruppe
                 const maIds = team.map(m => m.id);
-                const tagesAbw = (tpAbwesenheiten || []).filter(a =>
-                    !a.mitarbeiter_id && a.von <= iso && a.bis >= iso
-                ); // BF + FT (keine mitarbeiter_id)
+                // BF/FT: nur einen Eintrag pro Typ (nicht alle Mitarbeiter-Zeilen)
+                const tagesAbwRaw = (tpAbwesenheiten || []).filter(a =>
+                    (a.typ === 'BF' || a.typ === 'FT') && a.von <= iso && a.bis >= iso
+                );
+                const tagesAbw = tagesAbwRaw.filter((a,i,arr) =>
+                    arr.findIndex(b => b.typ === a.typ) === i
+                );
                 const maAbw = (tpAbwesenheiten || []).filter(a =>
                     maIds.includes(a.mitarbeiter_id) && a.von <= iso && a.bis >= iso
                 );
@@ -5403,7 +5401,7 @@ TECHNOLOGIE-STACK:
                     return `<div style="position:absolute;inset:0;background:${cfg.bg};border-left:3px solid ${cfg.border};
                         opacity:0.5;pointer-events:none;z-index:1;"></div>
                         <div style="position:absolute;top:2px;left:6px;font-size:0.7em;color:${cfg.border};
-                        font-weight:600;z-index:2;pointer-events:none;">${cfg.label}${allAbw.length > 1 ? ` +${allAbw.length-1}` : ''}</div>`;
+                        font-weight:600;z-index:2;pointer-events:none;">${cfg.label}</div>`;
                 })() : '';
 
                 html += `<div data-ecid="${ec.id}" data-date="${iso}"
@@ -9348,7 +9346,7 @@ TECHNOLOGIE-STACK:
 
     <!-- Version Check -->
     <div id="versionInfo" style="position: fixed; bottom: 8px; right: 8px; font-size: 10px; color: #999; background: white; padding: 4px 8px; border-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); z-index: 9999;">
-        Stand: 02.05.2026 06:14
+        Stand: 02.05.2026 06:21
     </div>
 
     <!-- Wetter Standorte Modal -->

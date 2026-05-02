@@ -5885,19 +5885,9 @@ TECHNOLOGIE-STACK:
                                  e.clientY >= listRect.top && e.clientY <= listRect.bottom;
 
                 if (overList) {
-                    // Sofort zurück in Liste – rot markiert als "muss verplant/freigegeben werden"
+                    // Zurück in Liste + ev. Geschwister zusammenführen
                     _tpReturnedIds.add(auftragId);
-                    delete tpDispoMap[auftragId];
-                    renderTagesprogramm();
-                    supabaseClient.from('dispo_einsaetze')
-                        .delete().eq('auftrag_id', auftragId).then(({ error }) => {
-                            if (error) {
-                                if (prevDispo) tpDispoMap[auftragId] = prevDispo;
-                                _tpReturnedIds.delete(auftragId);
-                                renderTagesprogramm();
-                                alert('❌ ' + error.message);
-                            }
-                        });
+                    tpRemoveFromPlan(auftragId);
                 } else if (_drag.ecId && _drag.dateISO) {
                     // Neu platzieren
                     const a = tpAllAuftraege.find(x => x.id === auftragId);
@@ -6249,6 +6239,53 @@ TECHNOLOGIE-STACK:
             'FT': { bg: '#dbeafe', border: '#2563eb', label: '🎉 Feiertag' },
         };
 
+
+        // ============================================================
+        // AUFTRAG AUS PLAN ENTFERNEN + GESCHWISTER ZUSAMMENFÜHREN
+        // ============================================================
+        async function tpRemoveFromPlan(auftragId) {
+            // Lokal entfernen
+            Object.keys(tpDispoMap).forEach(k => {
+                if (tpDispoMap[k].auftrag_id === auftragId) delete tpDispoMap[k];
+            });
+            renderTagesprogramm();
+
+            // DB: Dispo-Eintrag löschen
+            await supabaseClient.from('dispo_einsaetze').delete().eq('auftrag_id', auftragId);
+
+            // Geschwister-Check: Auftrag mit /N Suffix?
+            const a = tpAllAuftraege.find(x => x.id === auftragId);
+            if (a && a.projektnummer && /\/\d+$/.test(a.projektnummer)) {
+                const base = a.projektnummer.replace(/\/\d+$/, '');
+                const siblings = tpAllAuftraege.filter(x =>
+                    x.projektnummer === base + '/1' ||
+                    /^\/\d+$/.test(x.projektnummer.replace(base, ''))
+                ).filter(x => new RegExp('^' + base.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '/\\d+$').test(x.projektnummer));
+
+                // Alle ungeplant?
+                const allUnplanned = siblings.every(s =>
+                    !Object.values(tpDispoMap).some(d => d.auftrag_id === s.id)
+                );
+
+                if (allUnplanned && siblings.length > 1) {
+                    const totalH = siblings.reduce((sum, s) => sum + (s.aufwand_stunden || 0), 0);
+                    const sorted = [...siblings].sort((a,b) => a.id - b.id);
+                    const keepId = sorted[0].id;
+                    const deleteIds = sorted.slice(1).map(s => s.id);
+
+                    // DB: Zusammenführen
+                    await supabaseClient.from('auftraege')
+                        .update({ projektnummer: base, aufwand_stunden: totalH })
+                        .eq('id', keepId);
+                    if (deleteIds.length > 0) {
+                        await supabaseClient.from('auftraege').delete().in('id', deleteIds);
+                    }
+                    await loadTagesprogramm();
+                    return;
+                }
+            }
+        }
+
         // Stubs für alte Referenzen
 
         // ============================================================
@@ -6398,11 +6435,13 @@ TECHNOLOGIE-STACK:
             }
             document.getElementById('tpWarnOverlay').remove();
             try {
+                console.log('duplicate_auftrag params:', {p_session_token: sessionToken, p_auftrag_id: auftragId, p_aufwand_stunden: hDup});
                 const { data, error } = await supabaseClient.rpc('duplicate_auftrag', {
                     p_session_token: sessionToken,
-                    p_auftrag_id: auftragId,
-                    p_aufwand_stunden: hDup
+                    p_auftrag_id: parseInt(auftragId),
+                    p_aufwand_stunden: parseFloat(hDup)
                 });
+                console.log('duplicate_auftrag result:', data, error);
                 if (error || data?.error) throw new Error(data?.error || error?.message);
                 // Original-Aufwand lokal anpassen
                 const a = tpAllAuftraege.find(x => x.id === auftragId);
@@ -9345,7 +9384,7 @@ TECHNOLOGIE-STACK:
 
     <!-- Version Check -->
     <div id="versionInfo" style="position: fixed; bottom: 8px; right: 8px; font-size: 10px; color: #999; background: white; padding: 4px 8px; border-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); z-index: 9999;">
-        Stand: 02.05.2026 06:34
+        Stand: 02.05.2026 07:21
     </div>
 
     <!-- Wetter Standorte Modal -->

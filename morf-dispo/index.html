@@ -5329,7 +5329,8 @@ TECHNOLOGIE-STACK:
                         ${team.length > 0
                             ? team.map(m => `<span data-maid="${m.id}" data-ecid="${ec.id}"
                                 onmousedown="tpPickupMA(event,${m.id},${ec.id})"
-                                style="cursor:grab;user-select:none;">${m.vorname} ${m.nachname}</span>`)
+                                style="cursor:grab;user-select:none;"
+                            onmousedown="event.stopPropagation();">${m.vorname} ${m.nachname}</span>`)
                                 .join('<span style="color:#ccc;margin:0 0.3em;">|</span>')
                             : '<span style="color:#ccc;font-style:italic;">— kein MA —</span>'}
                     </div>
@@ -6011,9 +6012,13 @@ TECHNOLOGIE-STACK:
             if (event.button !== 0) return;
             event.preventDefault();
             event.stopPropagation();
-            // Andere Drag-Systeme deaktivieren
+            // Alle anderen Drag-Listener entfernen
             _drag.active = false;
             _maDrag.active = false;
+            document.removeEventListener('mouseup', _tpOnDrop);
+            document.removeEventListener('mousemove', _tpOnMove);
+            document.removeEventListener('mousemove', _maOnMove);
+            document.removeEventListener('mouseup', _maOnDrop);
             const ec = tpECs.find(x => x.id === ecId);
             if (!ec) return;
             const el = document.createElement('div');
@@ -6043,9 +6048,8 @@ TECHNOLOGIE-STACK:
         }
 
         async function _ecGrpDrop(e) {
-            console.log('_ecGrpDrop fired');
             window.removeEventListener('pointermove', _ecGrpMove);
-            window.removeEventListener('pointerup', _ecGrpDrop);
+            window.removeEventListener('pointerup', _ecGrpDrop, true);
             if (_ecGrp.floatEl) { _ecGrp.floatEl.remove(); _ecGrp.floatEl = null; }
             document.querySelectorAll('[data-ecid]').forEach(x => x.style.outline = '');
             if (!_ecGrp.active) return;
@@ -9284,7 +9288,7 @@ TECHNOLOGIE-STACK:
 
     <!-- Version Check -->
     <div id="versionInfo" style="position: fixed; bottom: 8px; right: 8px; font-size: 10px; color: #999; background: white; padding: 4px 8px; border-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); z-index: 9999;">
-        Stand: 01.05.2026 09:13
+        Stand: 01.05.2026 09:18
     </div>
 
     <!-- Wetter Standorte Modal -->

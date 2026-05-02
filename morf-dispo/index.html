@@ -6048,8 +6048,8 @@ TECHNOLOGIE-STACK:
         }
 
         async function _ecGrpDrop(e) {
-            window.removeEventListener('pointermove', _ecGrpMove);
-            window.removeEventListener('pointerup', _ecGrpDrop, true);
+            document.removeEventListener('mousemove', _ecGrpMove);
+            document.removeEventListener('mouseup', _ecGrpDrop, true);
             if (_ecGrp.floatEl) { _ecGrp.floatEl.remove(); _ecGrp.floatEl = null; }
             document.querySelectorAll('[data-ecid]').forEach(x => x.style.outline = '');
             if (!_ecGrp.active) return;
@@ -9288,7 +9288,7 @@ TECHNOLOGIE-STACK:
 
     <!-- Version Check -->
     <div id="versionInfo" style="position: fixed; bottom: 8px; right: 8px; font-size: 10px; color: #999; background: white; padding: 4px 8px; border-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); z-index: 9999;">
-        Stand: 01.05.2026 09:18
+        Stand: 02.05.2026 05:49
     </div>
 
     <!-- Wetter Standorte Modal -->

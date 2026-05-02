@@ -5205,6 +5205,7 @@ TECHNOLOGIE-STACK:
                     <th style="padding:6px 10px; text-align:left; font-weight:600; color:var(--text-gray);">Status</th>
                     
                     <th style="padding:6px 6px; text-align:left; font-weight:600; color:var(--text-gray);">Datum</th>
+                    <th style="padding:6px 6px; text-align:left; font-weight:600; color:var(--text-gray);">Projektnr.</th>
                     <th style="padding:6px 6px; text-align:left; font-weight:600; color:var(--text-gray);">Filiale</th>
                     <th style="padding:6px 6px; text-align:left; font-weight:600; color:var(--text-gray);">Ort</th>
                     <th style="padding:6px 6px; text-align:left; font-weight:600; color:var(--text-gray);">PLZ</th>
@@ -6256,33 +6257,34 @@ TECHNOLOGIE-STACK:
 
             // Geschwister-Check: Auftrag mit /N Suffix?
             const a = tpAllAuftraege.find(x => x.id === auftragId);
-            if (a && a.projektnummer && /\/\d+$/.test(a.projektnummer)) {
-                const base = a.projektnummer.replace(/\/\d+$/, '');
+            if (a && a.projektnummer && a.projektnummer.includes('/')) {
+                const base = a.projektnummer.substring(0, a.projektnummer.lastIndexOf('/'));
+                // Alle Aufträge mit gleicher Basis
                 const siblings = tpAllAuftraege.filter(x =>
-                    x.projektnummer === base + '/1' ||
-                    /^\/\d+$/.test(x.projektnummer.replace(base, ''))
-                ).filter(x => new RegExp('^' + base.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '/\\d+$').test(x.projektnummer));
-
-                // Alle ungeplant?
-                const allUnplanned = siblings.every(s =>
-                    !Object.values(tpDispoMap).some(d => d.auftrag_id === s.id)
+                    x.projektnummer && x.projektnummer.includes('/') &&
+                    x.projektnummer.substring(0, x.projektnummer.lastIndexOf('/')) === base
                 );
 
-                if (allUnplanned && siblings.length > 1) {
-                    const totalH = siblings.reduce((sum, s) => sum + (s.aufwand_stunden || 0), 0);
-                    const sorted = [...siblings].sort((a,b) => a.id - b.id);
-                    const keepId = sorted[0].id;
-                    const deleteIds = sorted.slice(1).map(s => s.id);
+                if (siblings.length > 1) {
+                    // Alle ungeplant? (tpDispoMap nach dem Delete prüfen)
+                    const plannedIds = new Set(Object.values(tpDispoMap).map(d => d.auftrag_id));
+                    const allUnplanned = siblings.every(s => !plannedIds.has(s.id));
 
-                    // DB: Zusammenführen
-                    await supabaseClient.from('auftraege')
-                        .update({ projektnummer: base, aufwand_stunden: totalH })
-                        .eq('id', keepId);
-                    if (deleteIds.length > 0) {
-                        await supabaseClient.from('auftraege').delete().in('id', deleteIds);
+                    if (allUnplanned) {
+                        const totalH = siblings.reduce((sum, s) => sum + (parseFloat(s.aufwand_stunden) || 0), 0);
+                        const sorted = [...siblings].sort((x,y) => x.id - y.id);
+                        const keepId = sorted[0].id;
+                        const deleteIds = sorted.slice(1).map(s => s.id);
+
+                        await supabaseClient.from('auftraege')
+                            .update({ projektnummer: base, aufwand_stunden: totalH })
+                            .eq('id', keepId);
+                        if (deleteIds.length > 0) {
+                            await supabaseClient.from('auftraege').delete().in('id', deleteIds);
+                        }
+                        await loadTagesprogramm();
+                        return;
                     }
-                    await loadTagesprogramm();
-                    return;
                 }
             }
         }
@@ -9385,7 +9387,7 @@ TECHNOLOGIE-STACK:
 
     <!-- Version Check -->
     <div id="versionInfo" style="position: fixed; bottom: 8px; right: 8px; font-size: 10px; color: #999; background: white; padding: 4px 8px; border-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); z-index: 9999;">
-        Stand: 02.05.2026 07:28
+        Stand: 02.05.2026 07:31
     </div>
 
     <!-- Wetter Standorte Modal -->

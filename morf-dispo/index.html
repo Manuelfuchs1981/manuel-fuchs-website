@@ -5379,7 +5379,7 @@ TECHNOLOGIE-STACK:
                                     ${(dsp.startzeit||'').slice(0,5)}–${(dsp.endzeit||'').slice(0,5)}
                                     ${dsp.partner_ec_id ? (() => { const p = tpECs.find(x=>x.id===dsp.partner_ec_id); return p?` <span style="color:${sc.color};opacity:0.7;">/ ${p.vorname} ${p.nachname}</span>`:''; })() : ''}
                                     <span style="font-weight:400;color:#555;"> ${a.projektnummer||''}</span>
-                                    <span onclick="event.stopPropagation();tpRemoveFromPlan(${a.id})" style="color:#aaa;cursor:pointer;margin-left:0.2em;flex-shrink:0;">✕</span>
+                                    <span onmousedown="event.stopPropagation();event.preventDefault();tpRemoveFromPlan(${a.id});tpShowDeleteFeedback(event);" style="color:#ef4444;cursor:pointer;margin-left:0.4em;flex-shrink:0;font-size:11px;font-weight:700;padding:1px 3px;border-radius:3px;background:rgba(239,68,68,0.1);" title="Einsatz löschen">✕</span>
                                 </span>
                             </div>`;
                         });
@@ -6245,6 +6245,16 @@ TECHNOLOGIE-STACK:
         // ============================================================
         // AUFTRAG AUS PLAN ENTFERNEN + GESCHWISTER ZUSAMMENFÜHREN
         // ============================================================
+
+        function tpShowDeleteFeedback(event) {
+            const bar = event.target.closest('[onmousedown*="tpPickupBar"]');
+            if (!bar) return;
+            bar.style.transition = 'opacity 0.3s, transform 0.3s';
+            bar.style.opacity = '0';
+            bar.style.transform = 'scaleX(0.8)';
+            setTimeout(() => { if (bar.parentNode) bar.remove(); }, 300);
+        }
+
         async function tpRemoveFromPlan(auftragId) {
             // Lokal entfernen
             Object.keys(tpDispoMap).forEach(k => {
@@ -9387,7 +9397,7 @@ TECHNOLOGIE-STACK:
 
     <!-- Version Check -->
     <div id="versionInfo" style="position: fixed; bottom: 8px; right: 8px; font-size: 10px; color: #999; background: white; padding: 4px 8px; border-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); z-index: 9999;">
-        Stand: 02.05.2026 07:31
+        Stand: 02.05.2026 07:35
     </div>
 
     <!-- Wetter Standorte Modal -->

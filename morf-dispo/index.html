@@ -5581,11 +5581,12 @@ TECHNOLOGIE-STACK:
         }
 
 
-        function tpWarnDialog(auftrag, totalH, splits) {
+        function tpWarnDialog(auftrag, totalH, recommendedH) {
             return new Promise(resolve => {
                 const ort = (auftrag.einsatzort||'').match(/\d{4}\s+(.+)/)?.[1]?.trim() || auftrag.einsatzort || '–';
                 const origH = auftrag.aufwand_stunden || 0;
-                const dupH = Math.max(1, origH - Math.floor(origH / 2));
+                // Empfohlene Stunden: was noch in den Tag passt (max 9h - bereits geplant)
+                const dupH = Math.min(origH - 1, Math.max(1, origH - (recommendedH || Math.ceil(origH/2))));
                 const origHSplit = origH - dupH;
 
                 const d = document.createElement('div');
@@ -5813,19 +5814,27 @@ TECHNOLOGIE-STACK:
             const startzeit = toTime(hourOfDay);
             const endzeit   = toTime(Math.min(24, hourOfDay + aufwand));
 
-            // 10h Check
-            const dayTotal = Object.values(tpDispoMap)
-                .filter(d => String(d.ec_id) === String(ecId) && d.einsatzdatum === dateISO && d.auftrag_id !== a.id)
-                .reduce((s, d) => s + (tpAllAuftraege.find(x => x.id === d.auftrag_id)?.aufwand_stunden || 0), 0);
-
-            if (dayTotal + aufwand > 10) {
-                const ok = await tpWarnDialog(a, dayTotal + aufwand, Math.ceil((dayTotal + aufwand) / 10));
-                if (!ok) return;
-            }
-
             // Sofort lokal einsetzen
             tpDispoMap[a.id] = { auftrag_id: a.id, ec_id: ecId, einsatzdatum: dateISO, startzeit, endzeit };
             renderTagesprogramm();
+
+            // 10h Check NACH Platzierung
+            const dayTotal = Object.values(tpDispoMap)
+                .filter(d => String(d.ec_id) === String(ecId) && d.einsatzdatum === dateISO && d.auftrag_id !== a.id)
+                .reduce((s, d) => s + (tpAllAuftraege.find(x => x.id === d.auftrag_id)?.aufwand_stunden || 0), 0);
+            const totalH = dayTotal + aufwand;
+
+            if (totalH > 10) {
+                // Empfohlene Aufteilung: max 9h - bereits geplante Stunden
+                const remaining = Math.max(1, 9 - dayTotal);
+                const ok = await tpWarnDialog(a, totalH, remaining);
+                if (!ok) {
+                    // Abbrechen → Auftrag wieder aus Plan entfernen
+                    delete tpDispoMap[a.id];
+                    renderTagesprogramm();
+                    return;
+                }
+            }
 
             // Zum Balken scrollen
             const gs2 = document.getElementById('tpGanttWrap');
@@ -9398,7 +9407,7 @@ TECHNOLOGIE-STACK:
 
     <!-- Version Check -->
     <div id="versionInfo" style="position: fixed; bottom: 8px; right: 8px; font-size: 10px; color: #999; background: white; padding: 4px 8px; border-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); z-index: 9999;">
-        Stand: 02.05.2026 07:41
+        Stand: 02.05.2026 07:48
     </div>
 
     <!-- Wetter Standorte Modal -->

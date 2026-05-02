@@ -6267,6 +6267,7 @@ TECHNOLOGIE-STACK:
 
             // Geschwister-Check: Auftrag mit /N Suffix?
             const a = tpAllAuftraege.find(x => x.id === auftragId);
+            console.log('Remove:', auftragId, 'proj:', a?.projektnummer, 'dispoMap keys:', Object.keys(tpDispoMap));
             if (a && a.projektnummer && a.projektnummer.includes('/')) {
                 const base = a.projektnummer.substring(0, a.projektnummer.lastIndexOf('/'));
                 // Alle Aufträge mit gleicher Basis
@@ -6276,9 +6277,9 @@ TECHNOLOGIE-STACK:
                 );
 
                 if (siblings.length > 1) {
-                    // Alle ungeplant? (tpDispoMap nach dem Delete prüfen)
                     const plannedIds = new Set(Object.values(tpDispoMap).map(d => d.auftrag_id));
                     const allUnplanned = siblings.every(s => !plannedIds.has(s.id));
+                    console.log('Siblings:', siblings.map(s=>s.projektnummer), 'plannedIds:', [...plannedIds], 'allUnplanned:', allUnplanned);
 
                     if (allUnplanned) {
                         const totalH = siblings.reduce((sum, s) => sum + (parseFloat(s.aufwand_stunden) || 0), 0);
@@ -9397,7 +9398,7 @@ TECHNOLOGIE-STACK:
 
     <!-- Version Check -->
     <div id="versionInfo" style="position: fixed; bottom: 8px; right: 8px; font-size: 10px; color: #999; background: white; padding: 4px 8px; border-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); z-index: 9999;">
-        Stand: 02.05.2026 07:35
+        Stand: 02.05.2026 07:41
     </div>
 
     <!-- Wetter Standorte Modal -->

@@ -1032,8 +1032,8 @@ function sichtbareTabs(){
 /* Ansichten, die man erreichen darf, auch wenn sie keinen Reiter haben. */
 function erlaubteTabs(){
   const st = sichtbareTabs().map(([k]) => k);
-  if(istKunde()) return st.concat(["daten"]);          /* nur Abmelden und Passwort */
-  return istDispo() ? st.concat(["daten","material","import"]) : st.concat(["daten"]);
+  /* Einstellungen, Material und Import gehören dem Büro. */
+  return istDispo() ? st.concat(["daten","material","import"]) : st;
 }
 function renderNav(){
   const st = sichtbareTabs();
@@ -1044,7 +1044,10 @@ function renderNav(){
     return `<button data-tab="${k}" aria-selected="${tab===k}">${l}${c}</button>`;
   }).join("");
 }
-function zeigeRoh(k){ tab = k; TABS.forEach(([t]) => { const el = $("#v-"+t); if(el) el.hidden = t !== k; }); renderNav(); render(); window.scrollTo(0,0); }
+function zeigeRoh(k){
+  /* Wer eine Ansicht nicht sehen darf, landet auf seiner ersten. */
+  if(!erlaubteTabs().includes(k)) k = sichtbareTabs()[0][0];
+  tab = k; TABS.forEach(([t]) => { const el = $("#v-"+t); if(el) el.hidden = t !== k; }); renderNav(); render(); window.scrollTo(0,0); }
 /* Reiter und Detailblatt landen im Verlauf des Browsers, damit die Zurück-Taste
    und die Wischgeste funktionieren. */
 function zustand(){ return {tab, det: $("#sheet").classList.contains("on") ? detailOffen : null}; }
@@ -3788,6 +3791,10 @@ function zeigeKuerzel(){
   el.hidden = false;
   if($("#km-name")) $("#km-name").textContent = name;
   if($("#km-rolle")) $("#km-rolle").textContent = ROLLEN[konto.rolle] || konto.rolle;
+  /* Einstellungen, Material und Import sind Bürosachen – Monteur und Kunde
+     bekommen im Menü nur das Abmelden. */
+  ["km-einst","km-material","km-import"].forEach(k => {
+    const b = $("#"+k); if(b) b.hidden = konto.rolle !== "dispo"; });
   /* Der Kunde bekommt nur das Abmelden. */
   const nurDispo = konto.rolle === "dispo";
   ["km-material","km-import"].forEach(k => { const b = $("#"+k); if(b) b.hidden = !nurDispo; });

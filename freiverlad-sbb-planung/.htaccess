@@ -1,0 +1,9 @@
+# Die Anwendung darf nicht im Zwischenspeicher hängen bleiben – sonst arbeitet
+# jemand tagelang mit einer alten Fassung.
+<IfModule mod_headers.c>
+  <FilesMatch "\.html$">
+    Header set Cache-Control "no-cache, no-store, must-revalidate"
+    Header set Pragma "no-cache"
+    Header set Expires "0"
+  </FilesMatch>
+</IfModule>

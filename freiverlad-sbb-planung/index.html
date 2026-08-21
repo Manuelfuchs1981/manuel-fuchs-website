@@ -1668,13 +1668,45 @@ function tageBauen(einheiten, start, budget, k){
   }
   return tage;
 }
+/* Tage von der Haustür nach aussen: der nächstgelegene freie Ort eröffnet den
+   Tag, aufgefüllt wird jeweils mit dem nächsten Nachbarn des letzten Stopps.
+   Das ergibt Tage, die man auf der Karte wiedererkennt. */
+function tageNahZuerst(einheiten, start, budget){
+  const abStart = e => (fahrt(start, pkt(ort(e[0])), start.id, e[0]) || {min:1e9}).min;
+  let rest = einheiten.slice().sort((a,b) => abStart(a) - abStart(b));
+  const tage = [];
+  let sicher = 0;
+  while(rest.length && sicher++ < 600){
+    let tag = rest.shift().slice(), weiter = true;
+    while(weiter && rest.length){
+      weiter = false;
+      const letzter = tag[tag.length-1];
+      let best = null;
+      rest.forEach((e,i) => {
+        if(tagesDauer(tag.concat(e), start) > budget) return;
+        const f = fahrt(pkt(ort(letzter)), pkt(ort(e[0])), letzter, e[0]);
+        const naeh = f ? f.min : 1e9;
+        if(!best || naeh < best.naeh) best = {i, naeh, e};
+      });
+      if(best){ tag = tag.concat(best.e); rest.splice(best.i, 1); weiter = true; }
+    }
+    tage.push(tag);
+  }
+  return tage;
+}
 function pendelTage(ids, start, budget){
   const einheiten = buendel(ids);
-  const gesamt = ids.map(ort).reduce((a,d) => a + montagezeit(d), 0);
-  let k = Math.max(1, Math.ceil(gesamt / budget));
-  let tage = null;
-  for(let v = 0; v < 12 && !tage; v++) tage = tageBauen(einheiten, start, budget, k + v);
-  if(!tage) tage = einheiten.map(e => e.slice());
+  let tage;
+  if(S.tagesbau === "km"){
+    /* Reine Kilometeroptimierung: Saatpunkte weit auseinander, dann auffüllen. */
+    const gesamt = ids.map(ort).reduce((a,d) => a + montagezeit(d), 0);
+    let k = Math.max(1, Math.ceil(gesamt / budget));
+    tage = null;
+    for(let v = 0; v < 12 && !tage; v++) tage = tageBauen(einheiten, start, budget, k + v);
+    if(!tage) tage = einheiten.map(e => e.slice());
+  } else {
+    tage = tageNahZuerst(einheiten, start, budget);
+  }
   tage = ausgleich(tage, start, budget);
   return tage.map(t => {
     const g = optimiere(t, true, start), st = strecke(g, true, start);
@@ -3048,6 +3080,11 @@ function renderDaten(){
         <div><label class="f">Zusätzliche Hotelnächte, die nicht geplant waren</label>
           <input type="number" id="pr-naechte" value="${S.naechteExtra||0}" min="0" step="1"></div>
       </div>
+      <label class="f">Tage zusammenstellen</label>
+      <select id="pr-tagesbau" style="max-width:280px">
+        <option value="nah" ${S.tagesbau !== "km" ? "selected" : ""}>Von der Haustür nach aussen</option>
+        <option value="km" ${S.tagesbau === "km" ? "selected" : ""}>Möglichst wenig Kilometer</option>
+      </select>
       <label class="f">Sicherheitsschulung am ersten Tag (Minuten)</label>
       <input type="number" id="pr-schulung" value="${schulungMin()}" min="0" step="15" style="max-width:140px">
       <label class="f">Zielrendite (%)</label>
@@ -3145,6 +3182,7 @@ function renderDaten(){
     S.naechteExtra = Math.max(0, +$("#pr-naechte").value || 0);
     S.vergabe = Math.max(0, +$("#pr-vergabe").value || 0);
     S.schulungMin = Math.max(0, +$("#pr-schulung").value || 0);
+    S.tagesbau = $("#pr-tagesbau").value;
     merkeEinstellung("ansatz"); merkeEinstellung("vergabe");
     save(); render(); toast("Ansätze gespeichert.");
   };

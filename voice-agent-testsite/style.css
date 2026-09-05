@@ -1,0 +1,41 @@
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, "Helvetica Neue", Arial, sans-serif; color: #1a1a1a; background: #fff; font-size: 16px; line-height: 1.6; }
+nav { display: flex; align-items: center; justify-content: space-between; padding: 20px 48px; border-bottom: 1px solid #eee; position: sticky; top: 0; background: #fff; z-index: 10; }
+.logo { font-size: 1.3rem; font-weight: 700; letter-spacing: -0.03em; }
+nav ul { display: flex; gap: 32px; list-style: none; }
+nav a { text-decoration: none; color: #555; font-size: 0.9rem; }
+nav a:hover, nav a.active { color: #1a1a1a; font-weight: 600; }
+main { max-width: 960px; margin: 0 auto; padding: 60px 48px; }
+h1 { font-size: clamp(2rem, 5vw, 3rem); font-weight: 700; letter-spacing: -0.03em; margin-bottom: 16px; }
+h2 { font-size: 1.3rem; font-weight: 700; margin-bottom: 16px; }
+.lead { font-size: 1.1rem; color: #444; margin-bottom: 40px; max-width: 640px; }
+.btn { display: inline-block; padding: 14px 32px; background: #1a1a1a; color: #fff; text-decoration: none; border-radius: 4px; font-size: 0.9rem; }
+.btn:hover { background: #333; }
+.hero { margin-bottom: 80px; }
+.usp { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
+.card { padding: 28px; border: 1px solid #eee; border-radius: 6px; }
+.card h3 { font-weight: 700; margin-bottom: 8px; }
+.card p { font-size: 0.9rem; color: #555; }
+.leistungen-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 24px; margin-top: 40px; }
+.leistung { padding: 32px; border: 1px solid #eee; border-radius: 6px; }
+.leistung.highlight { border-color: #1a1a1a; }
+.leistung h2 { font-size: 1.2rem; margin-bottom: 12px; }
+.preis { font-size: 1.6rem; font-weight: 700; margin-bottom: 16px; }
+.preis span { font-size: 0.9rem; font-weight: 400; color: #666; }
+.leistung p { font-size: 0.9rem; color: #555; }
+.kontakt-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 48px; margin-top: 40px; }
+.info-block { margin-bottom: 24px; }
+.info-block h3 { font-size: 0.75rem; letter-spacing: 0.12em; text-transform: uppercase; color: #999; margin-bottom: 4px; }
+.info-block a { color: #1a1a1a; text-decoration: none; }
+table { width: 100%; border-collapse: collapse; }
+td { padding: 10px 0; border-bottom: 1px solid #eee; font-size: 0.95rem; }
+td:last-child { text-align: right; color: #333; }
+.hinweis { margin-top: 16px; font-size: 0.85rem; color: #888; }
+.faq-liste { margin-top: 40px; }
+.faq-item { padding: 28px 0; border-bottom: 1px solid #eee; }
+.faq-item:first-child { border-top: 1px solid #eee; }
+.faq-item h2 { font-size: 1.05rem; margin-bottom: 10px; }
+.faq-item p { font-size: 0.95rem; color: #444; }
+footer { text-align: center; padding: 32px; font-size: 0.8rem; color: #aaa; border-top: 1px solid #eee; margin-top: 80px; }
+footer a { color: #aaa; }
+@media (max-width: 600px) { nav { padding: 16px 20px; flex-direction: column; gap: 12px; } main { padding: 40px 20px; } .usp, .leistungen-grid, .kontakt-grid { grid-template-columns: 1fr; } }
